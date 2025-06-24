@@ -490,7 +490,7 @@ int ff_http_do_new_request2(URLContext *h, const char *uri, AVDictionary **opts)
     if (!h->prot ||
         !(!strcmp(h->prot->name, "http") ||
           !strcmp(h->prot->name, "https")))
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*只处理http,https两种*/
 
     av_url_split(proto1, sizeof(proto1), NULL, 0,
                  hostname1, sizeof(hostname1), &port1,

@@ -608,6 +608,7 @@ const AVOutputFormat *av_muxer_iterate(void **opaque)
     return NULL;
 }
 
+/*用于遍历demuxer*/
 const AVInputFormat *av_demuxer_iterate(void **opaque)
 {
     static const uintptr_t size = sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1;
@@ -616,14 +617,14 @@ const AVInputFormat *av_demuxer_iterate(void **opaque)
     uintptr_t tmp;
 
     if (i < size) {
-        f = demuxer_list[i];
+        f = demuxer_list[i];/*取I号解码器*/
     } else if (tmp = atomic_load_explicit(&indev_list_intptr, memory_order_relaxed)) {
         const FFInputFormat *const *indev_list = (const FFInputFormat *const *)tmp;
         f = indev_list[i - size];
     }
 
     if (f) {
-        *opaque = (void*)(i + 1);
+        *opaque = (void*)(i + 1);/*保存下一个,以便下次遍历*/
         return &f->p;
     }
     return NULL;

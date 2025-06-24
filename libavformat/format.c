@@ -43,10 +43,11 @@ int av_match_ext(const char *filename, const char *extensions)
     const char *ext;
 
     if (!filename)
-        return 0;
+        return 0;/*文件名称为空,不能匹配*/
 
     ext = strrchr(filename, '.');
     if (ext)
+    	/*获得文件后缀*/
         return av_match_name(ext + 1, extensions);
     return 0;
 }
@@ -154,7 +155,7 @@ const AVInputFormat *av_find_input_format(const char *short_name)
 }
 
 const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
-                                            int is_opened, int *score_ret)
+                                            int is_opened/*文件是否已打开*/, int *score_ret)
 {
     AVProbeData lpd = *pd;
     const AVInputFormat *fmt1 = NULL;
@@ -170,6 +171,7 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
     } nodat = NO_ID3;
 
     if (!lpd.buf)
+    	/*为指定buf,为其指定临时buf*/
         lpd.buf = (unsigned char *) zerobuffer;
 
     if (lpd.buf_size > 10 && ff_id3v2_match(lpd.buf, ID3v2_DEFAULT_MAGIC)) {
@@ -185,6 +187,7 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
             nodat = ID3_GREATER_PROBE;
     }
 
+    /*遍历所有demuxer,检查匹配情况*/
     while ((fmt1 = av_demuxer_iterate(&i))) {
         if (fmt1->flags & AVFMT_EXPERIMENTAL)
             continue;
@@ -192,10 +195,13 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
             continue;
         score = 0;
         if (ffifmt(fmt1)->read_probe) {
+	    /*利用read_probe函数来探测文件格式*/
             score = ffifmt(fmt1)->read_probe(&lpd);
             if (score)
+            	/*显示得分*/
                 av_log(NULL, AV_LOG_TRACE, "Probing %s score:%d size:%d\n", fmt1->name, score, lpd.buf_size);
             if (fmt1->extensions && av_match_ext(lpd.filename, fmt1->extensions)) {
+            	/*此格式指定了后缀名称,且后缀名称匹配成功*/
                 switch (nodat) {
                 case NO_ID3:
                     score = FFMAX(score, 1);
@@ -210,18 +216,20 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
                 }
             }
         } else if (fmt1->extensions) {
+        	/*利用后缀来检查*/
             if (av_match_ext(lpd.filename, fmt1->extensions))
                 score = AVPROBE_SCORE_EXTENSION;
         }
         if (av_match_name(lpd.mime_type, fmt1->mime_type)) {
             int old_score = score;
             score += AVPROBE_SCORE_MIME_BONUS;
+        	/*利用mime_type类型来检测*/
             if (score > AVPROBE_SCORE_MAX) score = AVPROBE_SCORE_MAX;
             av_log(NULL, AV_LOG_DEBUG, "Probing %s score:%d increased to %d due to MIME type\n", fmt1->name, old_score, score);
         }
         if (score > score_max) {
             score_max = score;
-            fmt       = fmt1;
+            fmt       = fmt1;/*选择得分最高的FMT*/
         } else if (score == score_max)
             fmt = NULL;
     }
@@ -239,7 +247,7 @@ const AVInputFormat *av_probe_input_format2(const AVProbeData *pd,
     const AVInputFormat *fmt = av_probe_input_format3(pd, is_opened, &score_ret);
     if (score_ret > *score_max) {
         *score_max = score_ret;
-        return fmt;
+        return fmt;/*获得文件对应的format*/
     } else
         return NULL;
 }

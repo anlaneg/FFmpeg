@@ -1086,6 +1086,7 @@ static int v4l2_get_device_list(AVFormatContext *ctx, AVDeviceInfoList *device_l
         char device_name[256];
 
         if (!v4l2_is_v4l_dev(entry->d_name))
+        	/*跳过非v4l2设备*/
             continue;
 
         size = snprintf(device_name, sizeof(device_name), "/dev/%s", entry->d_name);

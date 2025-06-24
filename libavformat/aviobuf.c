@@ -501,6 +501,7 @@ static int read_packet_wrapper(AVIOContext *s, uint8_t *buf, int size)
 
     if (!s->read_packet)
         return AVERROR(EINVAL);
+    /*读取内容,例如ffurl_read*/
     ret = s->read_packet(s->opaque, buf, size);
     av_assert2(ret || s->max_packet_size);
     return ret;
@@ -640,7 +641,7 @@ int avio_read(AVIOContext *s, unsigned char *buf, int size)
                     s->buf_end = s->buffer/* + len*/;
                 }
             } else {
-                fill_buffer(s);
+                fill_buffer(s);/*填充BUFFER*/
                 len = s->buf_end - s->buf_ptr;
                 if (len == 0)
                     break;

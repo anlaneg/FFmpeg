@@ -9543,7 +9543,7 @@ static int mov_probe(const AVProbeData *p)
         }
     }
 
-    return score;
+    return score;/*返回得分*/
 }
 
 // must be done after parsing all trak because there's no order requirement

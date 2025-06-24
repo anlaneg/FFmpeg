@@ -449,7 +449,7 @@ struct AVCodecTag;
  * This structure contains the data a format has to probe a file.
  */
 typedef struct AVProbeData {
-    const char *filename;
+    const char *filename;/*文件名称*/
     unsigned char *buf; /**< Buffer must have AVPROBE_PADDING_SIZE of extra allocated bytes filled with zero. */
     int buf_size;       /**< Size of buf except extra allocated bytes */
     const char *mime_type; /**< mime_type, when known. */
@@ -567,7 +567,7 @@ typedef struct AVInputFormat {
      * usually not use extension format guessing because it is not
      * reliable enough
      */
-    const char *extensions;
+    const char *extensions;/*此格式注册的后缀名称*/
 
     const struct AVCodecTag * const *codec_tag;
 
@@ -1275,7 +1275,7 @@ typedef struct AVFormatContext {
      *
      * Demuxing only, set by avformat_open_input().
      */
-    const struct AVInputFormat *iformat;
+    const struct AVInputFormat *iformat;/*输入格式*/
 
     /**
      * The output container format.

@@ -174,15 +174,16 @@ static int init_input(AVFormatContext *s, const char *filename,
     }
 
     if ((s->iformat && s->iformat->flags & AVFMT_NOFILE) ||
-        (!s->iformat && (s->iformat = av_probe_input_format2(&pd, 0, &score))))
+        (!s->iformat/*未指定FOMAT*/ && (s->iformat = av_probe_input_format2(&pd, 0/*指明文件未打开*/, &score))))
         return score;
 
+    /*打开文件(io_open_default)*/
     if ((ret = s->io_open(s, &s->pb, filename, AVIO_FLAG_READ | s->avio_flags, options)) < 0)
         return ret;
 
     if (s->iformat)
         return 0;
-    return av_probe_input_buffer2(s->pb, &s->iformat, filename,
+    return av_probe_input_buffer2(s->pb, &s->iformat/*出参,输入文件格式*/, filename,
                                   s, 0, s->format_probesize);
 }
 

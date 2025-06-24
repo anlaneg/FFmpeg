@@ -66,7 +66,7 @@ FF_VISIBILITY_POP_HIDDEN
 
 av_cold void avdevice_register_all(void)
 {
-    avpriv_register_devices(outdev_list, indev_list);
+    avpriv_register_devices(outdev_list/*输出设备*/, indev_list);
 }
 
 static av_cold const void *next_input(const AVInputFormat *prev, AVClassCategory c2)

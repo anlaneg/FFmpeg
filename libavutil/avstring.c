@@ -204,6 +204,7 @@ char *av_strtok(char *s, const char *delim, char **saveptr)
     return tok;
 }
 
+/*匹配但不区分大小写*/
 int av_strcasecmp(const char *a, const char *b)
 {
     uint8_t c1, c2;
@@ -214,6 +215,7 @@ int av_strcasecmp(const char *a, const char *b)
     return c1 - c2;
 }
 
+/*匹配但不区分大小写(限制长度)*/
 int av_strncasecmp(const char *a, const char *b, size_t n)
 {
     uint8_t c1, c2;
@@ -348,19 +350,20 @@ int av_match_name(const char *name, const char *names)
     size_t len, namelen;
 
     if (!name || !names)
-        return 0;
+        return 0;/*有一个为空,则不匹配*/
 
-    namelen = strlen(name);
+    namelen = strlen(name);/*待匹配的名称*/
+    /*遍历扩展名称*/
     while (*names) {
         int negate = '-' == *names;
         p = strchr(names, ',');
         if (!p)
-            p = names + strlen(names);
-        names += negate;
+            p = names + strlen(names);/*没有遇到逗号,则指向结尾*/
+        names += negate;/*如果有'-',则跳过*/
         len = FFMAX(p - names, namelen);
         if (!av_strncasecmp(name, names, len) || !strncmp("ALL", names, FFMAX(3, p - names)))
-            return !negate;
-        names = p + (*p == ',');
+            return !negate;/*匹配成功,按是否包含'-'来决定返回结果*/
+        names = p + (*p == ',');/*尝试下一个*/
     }
     return 0;
 }

@@ -285,7 +285,7 @@ typedef struct VideoState {
     struct SwsContext *sub_convert_ctx;
     int eof;
 
-    char *filename;
+    char *filename;/*要播放的文件名称*/
     int width, height, xleft, ytop;
     int step;
 
@@ -3379,6 +3379,7 @@ static void event_loop(VideoState *cur_stream)
                 break;
             case SDLK_p:
             case SDLK_SPACE:
+            	/*处理暂停*/
                 toggle_pause(cur_stream);
                 break;
             case SDLK_m:
@@ -3386,6 +3387,7 @@ static void event_loop(VideoState *cur_stream)
                 break;
             case SDLK_KP_MULTIPLY:
             case SDLK_0:
+            	/*处理提高音量*/
                 update_volume(cur_stream, 1, SDL_VOLUME_STEP);
                 break;
             case SDLK_KP_DIVIDE:
@@ -3773,6 +3775,7 @@ int main(int argc, char **argv)
     signal(SIGINT , sigterm_handler); /* Interrupt (ANSI).    */
     signal(SIGTERM, sigterm_handler); /* Termination (ANSI).  */
 
+    /*显示版本信息及编译选项*/
     show_banner(argc, argv, options);
 
     ret = parse_options(NULL, argc, argv, options, opt_input_file);
@@ -3780,6 +3783,7 @@ int main(int argc, char **argv)
         exit(ret == AVERROR_EXIT ? 0 : 1);
 
     if (!input_filename) {
+    	/*没有指定要播放的文件*/
         show_usage();
         av_log(NULL, AV_LOG_FATAL, "An input file must be specified\n");
         av_log(NULL, AV_LOG_FATAL,
@@ -3788,10 +3792,12 @@ int main(int argc, char **argv)
     }
 
     if (display_disable) {
+    	/*指明不显示*/
         video_disable = 1;
     }
     flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER;
     if (audio_disable)
+    	/*指明无声*/
         flags &= ~SDL_INIT_AUDIO;
     else {
         /* Try to work around an occasional ALSA buffer underflow issue when the
@@ -3801,6 +3807,7 @@ int main(int argc, char **argv)
     }
     if (display_disable)
         flags &= ~SDL_INIT_VIDEO;
+    /*初始化SDL(利用flags进行控制)*/
     if (SDL_Init (flags)) {
         av_log(NULL, AV_LOG_FATAL, "Could not initialize SDL - %s\n", SDL_GetError());
         av_log(NULL, AV_LOG_FATAL, "(Did you set the DISPLAY variable?)\n");
@@ -3811,8 +3818,10 @@ int main(int argc, char **argv)
     SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 
     if (!display_disable) {
+    	/*没有指明禁用显示*/
         int flags = SDL_WINDOW_HIDDEN;
         if (alwaysontop)
+        	/*指明了最前显示*/
 #if SDL_VERSION_ATLEAST(2,0,5)
             flags |= SDL_WINDOW_ALWAYS_ON_TOP;
 #else
@@ -3883,6 +3892,7 @@ int main(int argc, char **argv)
 
     is = stream_open(input_filename, file_iformat);
     if (!is) {
+    	/*打开流失败*/
         av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
         do_exit(NULL);
     }

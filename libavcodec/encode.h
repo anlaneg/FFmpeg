@@ -27,6 +27,12 @@
 #include "packet.h"
 
 /**
+ * Used by some encoders as upper bound for the length of headers.
+ * TODO: Use proper codec-specific upper bounds.
+ */
+#define FF_INPUT_BUFFER_MIN_SIZE 16384
+
+/**
  * Called by encoders to get the next frame for encoding.
  *
  * @param frame An empty frame to be filled with data.
@@ -74,6 +80,11 @@ int ff_encode_encode_cb(AVCodecContext *avctx, AVPacket *avpkt,
                         AVFrame *frame, int *got_packet);
 
 /**
+ * Add a CPB properties side data to an encoding context.
+ */
+AVCPBProperties *ff_encode_add_cpb_side_data(AVCodecContext *avctx);
+
+/**
  * Rescale from sample rate to AVCodecContext.time_base.
  */
 static av_always_inline int64_t ff_samples_to_time_base(const AVCodecContext *avctx,
@@ -84,5 +95,14 @@ static av_always_inline int64_t ff_samples_to_time_base(const AVCodecContext *av
     return av_rescale_q(samples, (AVRational){ 1, avctx->sample_rate },
                         avctx->time_base);
 }
+
+/**
+ * Check if the elements of codec context matrices (intra_matrix, inter_matrix or
+ * chroma_intra_matrix) are within the specified range.
+ */
+#define FF_MATRIX_TYPE_INTRA        (1U << 0)
+#define FF_MATRIX_TYPE_INTER        (1U << 1)
+#define FF_MATRIX_TYPE_CHROMA_INTRA (1U << 2)
+int ff_check_codec_matrices(AVCodecContext *avctx, unsigned types, uint16_t min, uint16_t max);
 
 #endif /* AVCODEC_ENCODE_H */

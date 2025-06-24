@@ -23,6 +23,7 @@
  */
 
 #include "libavutil/imgutils.h"
+#include "libavutil/mem.h"
 #include "avcodec.h"
 #include "bytestream.h"
 #include "codec_internal.h"
@@ -385,8 +386,7 @@ static int qtrle_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     pkt->size = encode_frame(s, pict, pkt->data);
 
     /* save the current frame */
-    av_frame_unref(s->previous_frame);
-    ret = av_frame_ref(s->previous_frame, pict);
+    ret = av_frame_replace(s->previous_frame, pict);
     if (ret < 0) {
         av_log(avctx, AV_LOG_ERROR, "cannot add reference\n");
         return ret;
@@ -409,8 +409,7 @@ const FFCodec ff_qtrle_encoder = {
     .init           = qtrle_encode_init,
     FF_CODEC_ENCODE_CB(qtrle_encode_frame),
     .close          = qtrle_encode_end,
-    .p.pix_fmts     = (const enum AVPixelFormat[]){
-        AV_PIX_FMT_RGB24, AV_PIX_FMT_RGB555BE, AV_PIX_FMT_ARGB, AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE
-    },
+    CODEC_PIXFMTS(AV_PIX_FMT_RGB24, AV_PIX_FMT_RGB555BE, AV_PIX_FMT_ARGB,
+                  AV_PIX_FMT_GRAY8),
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };

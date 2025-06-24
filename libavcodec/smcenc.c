@@ -184,8 +184,8 @@ static void smc_encode_stream(SMCContext *s, const AVFrame *frame,
             const ptrdiff_t offset = xpixel_ptr - src_pixels;
             const int sy = offset / stride;
             const int sx = offset % stride;
-            const int ny = sx < 4 ? sy - 4 : sy;
-            const int nx = sx < 4 ? width - 4 + (width & 3) : sx - 4;
+            const int ny = sx < 4 ? FFMAX(sy - 4, 0) : sy;
+            const int nx = sx < 4 ? FFMAX(width - 4 + (width & 3), 0) : sx - 4;
             const uint8_t *old_pixel_ptr = src_pixels + nx + ny * stride;
             int compare = 0;
 
@@ -515,7 +515,7 @@ static void smc_encode_stream(SMCContext *s, const AVFrame *frame,
     }
 }
 
-static int smc_encode_init(AVCodecContext *avctx)
+static av_cold int smc_encode_init(AVCodecContext *avctx)
 {
     SMCContext *s = avctx->priv_data;
 
@@ -566,8 +566,7 @@ static int smc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     // write chunk length
     AV_WB24(pkt->data + 1, pkt->size);
 
-    av_frame_unref(s->prev_frame);
-    ret = av_frame_ref(s->prev_frame, frame);
+    ret = av_frame_replace(s->prev_frame, frame);
     if (ret < 0) {
         av_log(avctx, AV_LOG_ERROR, "cannot add reference\n");
         return ret;
@@ -581,9 +580,9 @@ static int smc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     return 0;
 }
 
-static int smc_encode_end(AVCodecContext *avctx)
+static av_cold int smc_encode_end(AVCodecContext *avctx)
 {
-    SMCContext *s = (SMCContext *)avctx->priv_data;
+    SMCContext *s = avctx->priv_data;
 
     av_frame_free(&s->prev_frame);
 
@@ -600,6 +599,5 @@ const FFCodec ff_smc_encoder = {
     .init           = smc_encode_init,
     FF_CODEC_ENCODE_CB(smc_encode_frame),
     .close          = smc_encode_end,
-    .p.pix_fmts     = (const enum AVPixelFormat[]) { AV_PIX_FMT_PAL8,
-                                                     AV_PIX_FMT_NONE},
+    CODEC_PIXFMTS(AV_PIX_FMT_PAL8),
 };

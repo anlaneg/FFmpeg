@@ -1,9 +1,6 @@
 # subsystems
 OBJS-$(CONFIG_AUDIODSP)                += ppc/audiodsp.o
 OBJS-$(CONFIG_BLOCKDSP)                += ppc/blockdsp.o
-OBJS-$(CONFIG_FFT)                     += ppc/fft_init.o                \
-                                          ppc/fft_altivec.o             \
-                                          ppc/fft_vsx.o
 OBJS-$(CONFIG_FDCTDSP)                 += ppc/fdctdsp.o
 OBJS-$(CONFIG_FMTCONVERT)              += ppc/fmtconvert_altivec.o
 OBJS-$(CONFIG_H264CHROMA)              += ppc/h264chroma_init.o
@@ -15,7 +12,7 @@ OBJS-$(CONFIG_LLVIDDSP)                += ppc/lossless_videodsp_altivec.o
 OBJS-$(CONFIG_ME_CMP)                  += ppc/me_cmp.o
 OBJS-$(CONFIG_MPEGAUDIODSP)            += ppc/mpegaudiodsp_altivec.o
 OBJS-$(CONFIG_MPEGVIDEO)               += ppc/mpegvideo_altivec.o
-OBJS-$(CONFIG_MPEGVIDEOENC)            += ppc/mpegvideoencdsp.o
+OBJS-$(CONFIG_MPEGVIDEOENCDSP)         += ppc/mpegvideoencdsp.o
 OBJS-$(CONFIG_PIXBLOCKDSP)             += ppc/pixblockdsp.o
 OBJS-$(CONFIG_VC1DSP)                  += ppc/vc1dsp_altivec.o
 OBJS-$(CONFIG_VIDEODSP)                += ppc/videodsp.o

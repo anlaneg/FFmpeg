@@ -32,7 +32,6 @@
 #include "bprint.h"
 #include "error.h"
 #include "macros.h"
-#include "version.h"
 
 int av_strstart(const char *str, const char *pfx, const char **ptr)
 {
@@ -346,7 +345,7 @@ int av_escape(char **dst, const char *src, const char *special_chars,
 int av_match_name(const char *name, const char *names)
 {
     const char *p;
-    int len, namelen;
+    size_t len, namelen;
 
     if (!name || !names)
         return 0;
@@ -453,10 +452,12 @@ int av_match_list(const char *name, const char *list, char separator)
                 if (k && (!p[k] || p[k] == separator))
                     return 1;
             q = strchr(q, separator);
-            q += !!q;
+            if(q)
+                q++;
         }
         p = strchr(p, separator);
-        p += !!p;
+        if (p)
+            p++;
     }
 
     return 0;

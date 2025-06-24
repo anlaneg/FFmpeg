@@ -1315,14 +1315,7 @@ static int ipvideo_decode_frame(AVCodecContext *avctx, AVFrame *frame,
         return ret;
 
     if (!s->is_16bpp) {
-#if FF_API_PALETTE_HAS_CHANGED
-FF_DISABLE_DEPRECATION_WARNINGS
-        frame->palette_has_changed =
-#endif
         ff_copy_palette(s->pal, avpkt, avctx);
-#if FF_API_PALETTE_HAS_CHANGED
-FF_ENABLE_DEPRECATION_WARNINGS
-#endif
     }
 
     switch (frame_format) {
@@ -1340,9 +1333,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
     *got_frame = send_buffer;
 
     /* shuffle frames */
-    av_frame_unref(s->second_last_frame);
     FFSWAP(AVFrame*, s->second_last_frame, s->last_frame);
-    if ((ret = av_frame_ref(s->last_frame, frame)) < 0)
+    if ((ret = av_frame_replace(s->last_frame, frame)) < 0)
         return ret;
 
     /* report that the buffer was completely consumed */

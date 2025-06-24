@@ -29,7 +29,8 @@
 #include "vdpau_internal.h"
 
 static int vdpau_vp9_start_frame(AVCodecContext *avctx,
-                                  const uint8_t *buffer, uint32_t size)
+                                 const AVBufferRef *buffer_ref,
+                                 const uint8_t *buffer, uint32_t size)
 {
     VP9Context *s = avctx->priv_data;
     VP9SharedContext *h = &(s->s);
@@ -197,22 +198,22 @@ static int vdpau_vp9_end_frame(AVCodecContext *avctx)
     return 0;
 }
 
-static int vdpau_vp9_init(AVCodecContext *avctx)
+static av_cold int vdpau_vp9_init(AVCodecContext *avctx)
 {
     VdpDecoderProfile profile;
     uint32_t level = avctx->level;
 
     switch (avctx->profile) {
-    case FF_PROFILE_VP9_0:
+    case AV_PROFILE_VP9_0:
         profile = VDP_DECODER_PROFILE_VP9_PROFILE_0;
         break;
-    case FF_PROFILE_VP9_1:
+    case AV_PROFILE_VP9_1:
         profile = VDP_DECODER_PROFILE_VP9_PROFILE_1;
         break;
-    case FF_PROFILE_VP9_2:
+    case AV_PROFILE_VP9_2:
         profile = VDP_DECODER_PROFILE_VP9_PROFILE_2;
         break;
-    case FF_PROFILE_VP9_3:
+    case AV_PROFILE_VP9_3:
         profile = VDP_DECODER_PROFILE_VP9_PROFILE_3;
         break;
     default:

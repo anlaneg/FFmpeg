@@ -23,6 +23,7 @@
 #include "libavutil/channel_layout.h"
 #include "libavutil/ffmath.h"
 #include "libavutil/float_dsp.h"
+#include "libavutil/mem.h"
 #include "libavutil/mem_internal.h"
 #include "libavutil/tx.h"
 
@@ -892,9 +893,9 @@ static av_cold void on2avc_free_vlcs(On2AVCContext *c)
 {
     int i;
 
-    ff_free_vlc(&c->scale_diff);
+    ff_vlc_free(&c->scale_diff);
     for (i = 1; i < 16; i++)
-        ff_free_vlc(&c->cb_vlc[i]);
+        ff_vlc_free(&c->cb_vlc[i]);
 }
 
 static av_cold int on2avc_decode_init(AVCodecContext *avctx)
@@ -969,14 +970,14 @@ static av_cold int on2avc_decode_init(AVCodecContext *avctx)
     if (!c->fdsp)
         return AVERROR(ENOMEM);
 
-    ret = ff_init_vlc_from_lengths(&c->scale_diff, 9, ON2AVC_SCALE_DIFFS,
+    ret = ff_vlc_init_from_lengths(&c->scale_diff, 9, ON2AVC_SCALE_DIFFS,
                                    ff_on2avc_scale_diff_bits, 1,
                                    ff_on2avc_scale_diff_syms, 1, 1, -60, 0, avctx);
     if (ret < 0)
         goto vlc_fail;
     for (i = 1; i < 16; i++) {
         int idx = i - 1;
-        ret = ff_init_vlc_from_lengths(&c->cb_vlc[i], 9, ff_on2avc_cb_elems[idx],
+        ret = ff_vlc_init_from_lengths(&c->cb_vlc[i], 9, ff_on2avc_cb_elems[idx],
                                        lens, 1,
                                        syms, 2, 2, 0, 0, avctx);
         if (ret < 0)
@@ -1022,6 +1023,5 @@ const FFCodec ff_on2avc_decoder = {
     .close          = on2avc_decode_close,
     .p.capabilities = AV_CODEC_CAP_DR1,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
-    .p.sample_fmts  = (const enum AVSampleFormat[]) { AV_SAMPLE_FMT_FLTP,
-                                                      AV_SAMPLE_FMT_NONE },
+    CODEC_SAMPLEFMTS(AV_SAMPLE_FMT_FLTP),
 };

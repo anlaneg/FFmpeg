@@ -19,6 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/mem.h"
 #include "libavutil/thread.h"
 
 #include "config.h"
@@ -69,7 +70,6 @@ static av_cold int mp_decode_end(AVCodecContext *avctx)
 
 static av_cold int mp_decode_init(AVCodecContext *avctx)
 {
-    av_unused static AVOnce init_static_once = AV_ONCE_INIT;
     MotionPixelsContext *mp = avctx->priv_data;
     int w4 = (avctx->width  + 3) & ~3;
     int h4 = (avctx->height + 3) & ~3;
@@ -94,6 +94,7 @@ static av_cold int mp_decode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
 
 #if !CONFIG_HARDCODED_TABLES
+    static AVOnce init_static_once = AV_ONCE_INIT;
     ff_thread_once(&init_static_once, motionpixels_tableinit);
 #endif
 
@@ -328,7 +329,7 @@ static int mp_decode_frame(AVCodecContext *avctx, AVFrame *rframe,
     if (mp->codes_count > 1) {
         /* The entries of the mp->codes array are sorted from right to left
          * in the Huffman tree, hence -(int)sizeof(HuffCode). */
-        ret = ff_init_vlc_from_lengths(&mp->vlc, mp->max_codes_bits, mp->codes_count,
+        ret = ff_vlc_init_from_lengths(&mp->vlc, mp->max_codes_bits, mp->codes_count,
                                        &mp->codes[mp->codes_count - 1].size,  -(int)sizeof(HuffCode),
                                        &mp->codes[mp->codes_count - 1].delta, -(int)sizeof(HuffCode), 1,
                                        0, 0, avctx);
@@ -336,7 +337,7 @@ static int mp_decode_frame(AVCodecContext *avctx, AVFrame *rframe,
             goto end;
     }
     mp_decode_frame_helper(mp, &gb);
-    ff_free_vlc(&mp->vlc);
+    ff_vlc_free(&mp->vlc);
 
 end:
     if ((ret = av_frame_ref(rframe, mp->frame)) < 0)

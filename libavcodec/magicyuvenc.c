@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "libavutil/cpu.h"
+#include "libavutil/mem.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/qsort.h"
@@ -32,7 +33,6 @@
 #include "codec_internal.h"
 #include "encode.h"
 #include "put_bits.h"
-#include "thread.h"
 #include "lossless_videoencdsp.h"
 
 #define MAGICYUV_EXTRADATA_SIZE 32
@@ -53,10 +53,20 @@ typedef struct PTable {
     int64_t prob;   ///< number of occurences of this value in input
 } PTable;
 
+typedef struct Slice {
+    int width;
+    int height;
+    int encode_raw;
+    unsigned pos;
+    unsigned size;
+    uint8_t *slice;
+    uint8_t *dst;
+    int64_t counts[256];
+} Slice;
+
 typedef struct MagicYUVContext {
     const AVClass       *class;
     int                  frame_pred;
-    PutBitContext        pb;
     int                  planes;
     uint8_t              format;
     int                  slice_height;
@@ -64,14 +74,8 @@ typedef struct MagicYUVContext {
     int                  correlate;
     int                  hshift[4];
     int                  vshift[4];
-    uint8_t            **slices;
-    uint8_t            **bitslices;
-    unsigned             bitslice_size;
-    unsigned            *slice_pos;
-    unsigned            *slice_size;
-    unsigned             tables_size;
-    PTable              *counts;
     uint8_t             *decorrelate_buf[2];
+    Slice               *slices;
     HuffEntry            he[4][256];
     LLVidEncDSPContext   llvidencdsp;
     void (*predict)(struct MagicYUVContext *s, const uint8_t *src, uint8_t *dst,
@@ -194,39 +198,43 @@ static av_cold int magy_encode_init(AVCodecContext *avctx)
         s->format = 0x6b;
         break;
     }
-    if (s->correlate) {
-        s->decorrelate_buf[0] = av_calloc(2U * avctx->height, FFALIGN(avctx->width, 16));
-        if (!s->decorrelate_buf[0])
-            return AVERROR(ENOMEM);
-        s->decorrelate_buf[1] = s->decorrelate_buf[0] + avctx->height * FFALIGN(avctx->width, 16);
-    }
 
     ff_llvidencdsp_init(&s->llvidencdsp);
 
     s->planes = av_pix_fmt_count_planes(avctx->pix_fmt);
 
-    s->nb_slices = (avctx->slices <= 0) ? av_cpu_count() : avctx->slices;
+    s->nb_slices = avctx->slices > 0 ? avctx->slices : avctx->thread_count;
     s->nb_slices = FFMIN(s->nb_slices, avctx->height >> s->vshift[1]);
     s->nb_slices = FFMAX(1, s->nb_slices);
     s->slice_height = FFALIGN((avctx->height + s->nb_slices - 1) / s->nb_slices, 1 << s->vshift[1]);
-    s->slice_pos = av_calloc(s->nb_slices * s->planes, sizeof(*s->slice_pos));
-    s->slice_size = av_calloc(s->nb_slices * s->planes, sizeof(*s->slice_size));
+    s->nb_slices = (avctx->height + s->slice_height - 1) / s->slice_height;
+    s->nb_slices = FFMIN(256U / s->planes, s->nb_slices);
     s->slices = av_calloc(s->nb_slices * s->planes, sizeof(*s->slices));
-    s->bitslices = av_calloc(s->nb_slices * s->planes, sizeof(*s->bitslices));
-    s->counts = av_calloc(s->nb_slices * s->planes * 256, sizeof(*s->counts));
-    if (!s->slices || !s->slice_pos || !s->counts || !s->slice_size)
+    if (!s->slices)
         return AVERROR(ENOMEM);
 
-    s->bitslice_size = avctx->width * (s->slice_height + 2) + AV_INPUT_BUFFER_PADDING_SIZE;
+    if (s->correlate) {
+        size_t max_align = av_cpu_max_align();
+        size_t aligned_width = FFALIGN(avctx->width, max_align);
+        s->decorrelate_buf[0] = av_calloc(2U * (s->nb_slices * s->slice_height),
+                                          aligned_width);
+        if (!s->decorrelate_buf[0])
+            return AVERROR(ENOMEM);
+        s->decorrelate_buf[1] = s->decorrelate_buf[0] + (s->nb_slices * s->slice_height) * aligned_width;
+    }
+
     for (int n = 0; n < s->nb_slices; n++) {
         for (int i = 0; i < s->planes; i++) {
-            s->bitslices[n * s->planes + i] = av_malloc(s->bitslice_size);
-            s->slices[n * s->planes + i] = av_malloc(avctx->width * (s->slice_height + 2) +
+            Slice *sl = &s->slices[n * s->planes + i];
+
+            sl->height = n == s->nb_slices - 1 ? avctx->height - n * s->slice_height : s->slice_height;
+            sl->height = AV_CEIL_RSHIFT(sl->height, s->vshift[i]);
+            sl->width  = AV_CEIL_RSHIFT(avctx->width, s->hshift[i]);
+
+            sl->slice = av_malloc(avctx->width * (s->slice_height + 2) +
                                                      AV_INPUT_BUFFER_PADDING_SIZE);
-            if (!s->slices[n * s->planes + i] || !s->bitslices[n * s->planes + i]) {
-                av_log(avctx, AV_LOG_ERROR, "Cannot allocate temporary buffer.\n");
+            if (!sl->slice)
                 return AVERROR(ENOMEM);
-            }
         }
     }
 
@@ -240,29 +248,26 @@ static av_cold int magy_encode_init(AVCodecContext *avctx)
 
     avctx->extradata = av_mallocz(avctx->extradata_size +
                                   AV_INPUT_BUFFER_PADDING_SIZE);
-
-    if (!avctx->extradata) {
-        av_log(avctx, AV_LOG_ERROR, "Could not allocate extradata.\n");
+    if (!avctx->extradata)
         return AVERROR(ENOMEM);
-    }
 
     bytestream2_init_writer(&pb, avctx->extradata, MAGICYUV_EXTRADATA_SIZE);
-    bytestream2_put_le32(&pb, MKTAG('M', 'A', 'G', 'Y'));
-    bytestream2_put_le32(&pb, 32);
-    bytestream2_put_byte(&pb, 7);
-    bytestream2_put_byte(&pb, s->format);
-    bytestream2_put_byte(&pb, 12);
-    bytestream2_put_byte(&pb, 0);
+    bytestream2_put_le32u(&pb, MKTAG('M', 'A', 'G', 'Y'));
+    bytestream2_put_le32u(&pb, 32);
+    bytestream2_put_byteu(&pb, 7);
+    bytestream2_put_byteu(&pb, s->format);
+    bytestream2_put_byteu(&pb, 12);
+    bytestream2_put_byteu(&pb, 0);
 
-    bytestream2_put_byte(&pb, 0);
-    bytestream2_put_byte(&pb, 0);
-    bytestream2_put_byte(&pb, 32);
-    bytestream2_put_byte(&pb, 0);
+    bytestream2_put_byteu(&pb, 0);
+    bytestream2_put_byteu(&pb, 0);
+    bytestream2_put_byteu(&pb, 32);
+    bytestream2_put_byteu(&pb, 0);
 
-    bytestream2_put_le32(&pb, avctx->width);
-    bytestream2_put_le32(&pb, avctx->height);
-    bytestream2_put_le32(&pb, avctx->width);
-    bytestream2_put_le32(&pb, avctx->height);
+    bytestream2_put_le32u(&pb, avctx->width);
+    bytestream2_put_le32u(&pb, avctx->height);
+    bytestream2_put_le32u(&pb, avctx->width);
+    bytestream2_put_le32u(&pb, avctx->height);
 
     return 0;
 }
@@ -282,11 +287,11 @@ static void calculate_codes(HuffEntry *he, uint16_t codes_count[33])
 }
 
 static void count_usage(const uint8_t *src, int width,
-                        int height, PTable *counts)
+                        int height, int64_t *counts)
 {
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++)
-            counts[src[i]].prob++;
+            counts[src[i]]++;
         src += width;
     }
 }
@@ -370,98 +375,105 @@ static void magy_huffman_compute_bits(PTable *prob_table, HuffEntry *distincts,
 static int count_plane_slice(AVCodecContext *avctx, int n, int plane)
 {
     MagicYUVContext *s = avctx->priv_data;
-    const uint8_t *dst = s->slices[n * s->planes + plane];
-    PTable *counts = s->counts + 256 * (n * s->planes + plane);
+    Slice *sl = &s->slices[n * s->planes + plane];
+    const uint8_t *dst = sl->slice;
+    int64_t *counts = sl->counts;
 
-    memset(counts, 0, sizeof(*counts) * 256);
+    memset(counts, 0, sizeof(sl->counts));
 
-    count_usage(dst, AV_CEIL_RSHIFT(avctx->width, s->hshift[plane]),
-                AV_CEIL_RSHIFT(s->slice_height, s->vshift[plane]), counts);
+    count_usage(dst, sl->width, sl->height, counts);
 
     return 0;
 }
 
-static int encode_table(AVCodecContext *avctx,
-                        PutBitContext *pb, HuffEntry *he, int plane)
+static void generate_codes(AVCodecContext *avctx,
+                           HuffEntry *he, int plane)
 {
     MagicYUVContext *s = avctx->priv_data;
-    PTable counts[256] = { {0} };
+    PTable counts[256];
     uint16_t codes_counts[33] = { 0 };
 
-    for (int n = 0; n < s->nb_slices; n++) {
-        PTable *slice_counts = s->counts + 256 * (n * s->planes + plane);
-
-        for (int i = 0; i < 256; i++)
-            counts[i].prob = slice_counts[i].prob;
+    for (size_t i = 0; i < FF_ARRAY_ELEMS(counts); i++) {
+        counts[i].prob  = 1;
+        counts[i].value = i;
     }
 
-    for (int i = 0; i < 256; i++) {
-        counts[i].prob++;
-        counts[i].value = i;
+    for (int n = 0; n < s->nb_slices; n++) {
+        Slice *sl = &s->slices[n * s->planes + plane];
+        int64_t *slice_counts = sl->counts;
+
+        for (int i = 0; i < 256; i++)
+            counts[i].prob += slice_counts[i];
     }
 
     magy_huffman_compute_bits(counts, he, codes_counts, 256, 12);
 
     calculate_codes(he, codes_counts);
-
-    for (int i = 0; i < 256; i++) {
-        put_bits(pb, 1, 0);
-        put_bits(pb, 7, he[i].len);
-    }
-
-    return 0;
 }
 
-static int encode_plane_slice(uint8_t *src, uint8_t *dst, int dst_size,
-                              int width, int height, HuffEntry *he, int prediction)
+static void output_codes(PutByteContext *pb, const HuffEntry he[256])
+{
+    for (int i = 0; i < 256; i++) {
+        // The seven low bits are len; the top bit means the run of
+        // codes of this length has length one.
+        bytestream2_put_byteu(pb, he[i].len);
+    }
+}
+
+static void encode_plane_slice_raw(const uint8_t *src, uint8_t *dst,
+                                   int width, int height, int prediction)
+{
+    unsigned count = width * height;
+
+    dst[0] = 1;
+    dst[1] = prediction;
+
+    memcpy(dst + 2, src, count);
+}
+
+static void encode_plane_slice(const uint8_t *src, uint8_t *dst, unsigned dst_size,
+                               int width, int height, HuffEntry *he, int prediction)
 {
     PutBitContext pb;
-    int i, j;
-    int count;
 
     init_put_bits(&pb, dst, dst_size);
 
     put_bits(&pb, 8, 0);
     put_bits(&pb, 8, prediction);
 
-    for (j = 0; j < height; j++) {
-        for (i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
             const int idx = src[i];
-            put_bits(&pb, he[idx].len, he[idx].code);
+            const int len = he[idx].len;
+            put_bits(&pb, len, he[idx].code);
         }
 
         src += width;
     }
 
-    count = put_bits_count(&pb) & 0x1F;
-
-    if (count)
-        put_bits(&pb, 32 - count, 0);
-
     flush_put_bits(&pb);
-
-    return put_bytes_output(&pb);
+    av_assert1(put_bytes_left(&pb, 0) <= 3);
 }
 
 static int encode_slice(AVCodecContext *avctx, void *tdata,
                         int n, int threadnr)
 {
     MagicYUVContext *s = avctx->priv_data;
-    const int slice_height = s->slice_height;
-    const int last_height = FFMIN(slice_height, avctx->height - n * slice_height);
-    const int height = (n < (s->nb_slices - 1)) ? slice_height : last_height;
-    PutByteContext pb;
 
     for (int i = 0; i < s->planes; i++) {
-        bytestream2_init_writer(&pb, s->bitslices[n + s->planes + i],
-                                s->bitslice_size);
+        Slice *sl = &s->slices[n * s->planes + i];
 
-        s->slice_size[n * s->planes + i] =
-            encode_plane_slice(s->slices[n * s->planes + i],
-                               s->bitslices[n * s->planes + i],
-                               bytestream2_get_bytes_left_p(&pb),
-                               AV_CEIL_RSHIFT(avctx->width, s->hshift[i]),
-                               AV_CEIL_RSHIFT(height, s->vshift[i]),
+        // Zero the padding now
+        AV_WN32(sl->dst + sl->size - 4, 0);
+
+        if (sl->encode_raw)
+            encode_plane_slice_raw(sl->slice, sl->dst,
+                                   sl->width, sl->height, s->frame_pred);
+        else
+            encode_plane_slice(sl->slice,
+                               sl->dst,
+                               sl->size,
+                               sl->width, sl->height,
                                s->he[i], s->frame_pred);
     }
 
@@ -471,7 +483,8 @@ static int encode_slice(AVCodecContext *avctx, void *tdata,
 static int predict_slice(AVCodecContext *avctx, void *tdata,
                          int n, int threadnr)
 {
-    const int aligned_width = FFALIGN(avctx->width, 16);
+    size_t max_align = av_cpu_max_align();
+    const int aligned_width = FFALIGN(avctx->width, max_align);
     MagicYUVContext *s = avctx->priv_data;
     const int slice_height = s->slice_height;
     const int last_height = FFMIN(slice_height, avctx->height - n * slice_height);
@@ -484,7 +497,7 @@ static int predict_slice(AVCodecContext *avctx, void *tdata,
                                      s->decorrelate_buf[1] + n * slice_height * aligned_width };
         const int decorrelate_linesize = aligned_width;
         const uint8_t *const data[4] = { decorrelated[0], frame->data[0] + n * slice_height * frame->linesize[0],
-                                         decorrelated[1], frame->data[3] + n * slice_height * frame->linesize[3] };
+                                         decorrelated[1], s->planes == 4 ? frame->data[3] + n * slice_height * frame->linesize[3] : NULL };
         const uint8_t *r, *g, *b;
         const int linesize[4]  = { decorrelate_linesize, frame->linesize[0],
                                    decorrelate_linesize, frame->linesize[3] };
@@ -493,7 +506,7 @@ static int predict_slice(AVCodecContext *avctx, void *tdata,
         b = frame->data[1] + n * slice_height * frame->linesize[1];
         r = frame->data[2] + n * slice_height * frame->linesize[2];
 
-        for (int i = 0; i < slice_height; i++) {
+        for (int i = 0; i < height; i++) {
             s->llvidencdsp.diff_bytes(decorrelated[0], b, g, width);
             s->llvidencdsp.diff_bytes(decorrelated[1], r, g, width);
             g += frame->linesize[0];
@@ -504,16 +517,19 @@ static int predict_slice(AVCodecContext *avctx, void *tdata,
         }
 
         for (int i = 0; i < s->planes; i++) {
-            s->predict(s, data[i], s->slices[n * s->planes + i], linesize[i],
+            Slice *sl = &s->slices[n * s->planes + i];
+
+            s->predict(s, data[i], sl->slice, linesize[i],
                        frame->width, height);
         }
     } else {
         for (int i = 0; i < s->planes; i++) {
+            Slice *sl = &s->slices[n * s->planes + i];
+
             s->predict(s, frame->data[i] + n * (slice_height >> s->vshift[i]) * frame->linesize[i],
-                       s->slices[n * s->planes + i],
+                       sl->slice,
                        frame->linesize[i],
-                       AV_CEIL_RSHIFT(frame->width, s->hshift[i]),
-                       AV_CEIL_RSHIFT(height, s->vshift[i]));
+                       sl->width, sl->height);
         }
     }
 
@@ -528,78 +544,77 @@ static int magy_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 {
     MagicYUVContext *s = avctx->priv_data;
     PutByteContext pb;
-    const int width = avctx->width, height = avctx->height;
-    const int slice_height = s->slice_height;
-    int pos, ret = 0;
+    int header_size = 32 + (4 + 1) * (s->planes * s->nb_slices + 1)
+                         + 256 * s->planes /* Hufftables */;
+    int64_t pkt_size = header_size;
+    int ret;
 
-    ret = ff_alloc_packet(avctx, pkt, (256 + 4 * s->nb_slices + width * height) *
-                          s->planes + 256);
+    avctx->execute2(avctx, predict_slice, (void *)frame, NULL, s->nb_slices);
+
+    for (int i = 0; i < s->planes; i++)
+        generate_codes(avctx, s->he[i], i);
+
+    for (int i = 0; i < s->nb_slices; ++i) {
+        for (int j = 0; j < s->planes; ++j) {
+            Slice *const sl = &s->slices[i * s->planes + j];
+            int64_t size = 0;
+
+            for (size_t k = 0; k < FF_ARRAY_ELEMS(sl->counts); ++k)
+                size += sl->counts[k] * s->he[j][k].len;
+            size = AV_CEIL_RSHIFT(size, 3);
+            sl->encode_raw = size >= sl->width * sl->height;
+            if (sl->encode_raw)
+                size = sl->width * sl->height;
+            sl->size = FFALIGN(size + 2, 4);
+            sl->pos  = pkt_size;
+            pkt_size += sl->size;
+        }
+    }
+
+    ret = ff_get_encode_buffer(avctx, pkt, pkt_size, 0);
     if (ret < 0)
         return ret;
 
     bytestream2_init_writer(&pb, pkt->data, pkt->size);
-    bytestream2_put_le32(&pb, MKTAG('M', 'A', 'G', 'Y'));
-    bytestream2_put_le32(&pb, 32); // header size
-    bytestream2_put_byte(&pb, 7);  // version
-    bytestream2_put_byte(&pb, s->format);
-    bytestream2_put_byte(&pb, 12); // max huffman length
-    bytestream2_put_byte(&pb, 0);
+    bytestream2_put_le32u(&pb, MKTAG('M', 'A', 'G', 'Y'));
+    bytestream2_put_le32u(&pb, 32); // header size
+    bytestream2_put_byteu(&pb, 7);  // version
+    bytestream2_put_byteu(&pb, s->format);
+    bytestream2_put_byteu(&pb, 12); // max huffman length
+    bytestream2_put_byteu(&pb, 0);
 
-    bytestream2_put_byte(&pb, 0);
-    bytestream2_put_byte(&pb, 0);
-    bytestream2_put_byte(&pb, 32); // coder type
-    bytestream2_put_byte(&pb, 0);
+    bytestream2_put_byteu(&pb, 0);
+    bytestream2_put_byteu(&pb, 0);
+    bytestream2_put_byteu(&pb, 32); // coder type
+    bytestream2_put_byteu(&pb, 0);
 
-    bytestream2_put_le32(&pb, avctx->width);
-    bytestream2_put_le32(&pb, avctx->height);
-    bytestream2_put_le32(&pb, avctx->width);
-    bytestream2_put_le32(&pb, slice_height);
-    bytestream2_put_le32(&pb, 0);
+    bytestream2_put_le32u(&pb, avctx->width);
+    bytestream2_put_le32u(&pb, avctx->height);
+    bytestream2_put_le32u(&pb, avctx->width);
+    bytestream2_put_le32u(&pb, s->slice_height);
 
-    for (int i = 0; i < s->planes; i++) {
-        bytestream2_put_le32(&pb, 0);
-        for (int j = 1; j < s->nb_slices; j++)
-            bytestream2_put_le32(&pb, 0);
-    }
+    // Slice position is relative to the current position (i.e. 32)
+    bytestream2_put_le32u(&pb, header_size - 32);
 
-    bytestream2_put_byte(&pb, s->planes);
-
-    for (int i = 0; i < s->planes; i++) {
-        for (int n = 0; n < s->nb_slices; n++)
-            bytestream2_put_byte(&pb, n * s->planes + i);
-    }
-
-    avctx->execute2(avctx, predict_slice, (void *)frame, NULL, s->nb_slices);
-
-    init_put_bits(&s->pb, pkt->data + bytestream2_tell_p(&pb), bytestream2_get_bytes_left_p(&pb));
-
-    for (int i = 0; i < s->planes; i++)
-        encode_table(avctx, &s->pb, s->he[i], i);
-
-    s->tables_size = put_bytes_count(&s->pb, 1);
-    bytestream2_skip_p(&pb, s->tables_size);
-
-    avctx->execute2(avctx, encode_slice, NULL, NULL, s->nb_slices);
-
-    for (int n = 0; n < s->nb_slices; n++) {
-        for (int i = 0; i < s->planes; i++) {
-            s->slice_pos[n * s->planes + i] = bytestream2_tell_p(&pb);
-
-            bytestream2_put_buffer(&pb, s->bitslices[n * s->planes + i],
-                                   s->slice_size[n * s->planes + i]);
+    for (int i = 0; i < s->planes; ++i) {
+        for (int j = 0; j < s->nb_slices; ++j) {
+            Slice *const sl = &s->slices[j * s->planes + i];
+            bytestream2_put_le32u(&pb, sl->pos - 32);
+            sl->dst    = pkt->data + sl->pos;
         }
     }
 
-    pos = bytestream2_tell_p(&pb);
-    bytestream2_seek_p(&pb, 32, SEEK_SET);
-    bytestream2_put_le32(&pb, s->slice_pos[0] - 32);
+    bytestream2_put_byteu(&pb, s->planes);
+
     for (int i = 0; i < s->planes; i++) {
         for (int n = 0; n < s->nb_slices; n++)
-           bytestream2_put_le32(&pb, s->slice_pos[n * s->planes + i] - 32);
+            bytestream2_put_byteu(&pb, n * s->planes + i);
     }
-    bytestream2_seek_p(&pb, pos, SEEK_SET);
 
-    pkt->size   = bytestream2_tell_p(&pb);
+    for (int i = 0; i < s->planes; ++i)
+        output_codes(&pb, s->he[i]);
+
+    avctx->execute2(avctx, encode_slice, NULL, NULL, s->nb_slices);
 
     *got_packet = 1;
 
@@ -610,15 +625,14 @@ static av_cold int magy_encode_close(AVCodecContext *avctx)
 {
     MagicYUVContext *s = avctx->priv_data;
 
-    av_freep(&s->slice_pos);
-    av_freep(&s->slice_size);
-    for (int i = 0; i < s->planes * s->nb_slices && s->slices; i++)
-        av_freep(&s->slices[i]);
-    for (int i = 0; i < s->planes * s->nb_slices && s->bitslices; i++)
-        av_freep(&s->bitslices[i]);
-    av_freep(&s->counts);
-    av_freep(&s->slices);
-    av_freep(&s->bitslices);
+    if (s->slices) {
+        for (int i = 0; i < s->planes * s->nb_slices; i++) {
+            Slice *sl = &s->slices[i];
+
+            av_freep(&sl->slice);
+        }
+        av_freep(&s->slices);
+    }
     av_freep(&s->decorrelate_buf);
 
     return 0;
@@ -627,10 +641,10 @@ static av_cold int magy_encode_close(AVCodecContext *avctx)
 #define OFFSET(x) offsetof(MagicYUVContext, x)
 #define VE AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM
 static const AVOption options[] = {
-    { "pred", "Prediction method", OFFSET(frame_pred), AV_OPT_TYPE_INT, {.i64=LEFT}, LEFT, MEDIAN, VE, "pred" },
-    { "left",     NULL, 0, AV_OPT_TYPE_CONST, { .i64 = LEFT },     0, 0, VE, "pred" },
-    { "gradient", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = GRADIENT }, 0, 0, VE, "pred" },
-    { "median",   NULL, 0, AV_OPT_TYPE_CONST, { .i64 = MEDIAN },   0, 0, VE, "pred" },
+    { "pred", "Prediction method", OFFSET(frame_pred), AV_OPT_TYPE_INT, {.i64=LEFT}, LEFT, MEDIAN, VE, .unit = "pred" },
+    { "left",     NULL, 0, AV_OPT_TYPE_CONST, { .i64 = LEFT },     0, 0, VE, .unit = "pred" },
+    { "gradient", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = GRADIENT }, 0, 0, VE, .unit = "pred" },
+    { "median",   NULL, 0, AV_OPT_TYPE_CONST, { .i64 = MEDIAN },   0, 0, VE, .unit = "pred" },
     { NULL},
 };
 
@@ -654,10 +668,9 @@ const FFCodec ff_magicyuv_encoder = {
     .init             = magy_encode_init,
     .close            = magy_encode_close,
     FF_CODEC_ENCODE_CB(magy_encode_frame),
-    .p.pix_fmts       = (const enum AVPixelFormat[]) {
-                          AV_PIX_FMT_GBRP, AV_PIX_FMT_GBRAP, AV_PIX_FMT_YUV422P,
-                          AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUVA444P, AV_PIX_FMT_GRAY8,
-                          AV_PIX_FMT_NONE
-                      },
+    CODEC_PIXFMTS(AV_PIX_FMT_GBRP, AV_PIX_FMT_GBRAP, AV_PIX_FMT_YUV422P,
+                  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUVA444P,
+                  AV_PIX_FMT_GRAY8),
+    .color_ranges     = AVCOL_RANGE_MPEG, /* FIXME: implement tagging */
     .caps_internal    = FF_CODEC_CAP_INIT_CLEANUP,
 };

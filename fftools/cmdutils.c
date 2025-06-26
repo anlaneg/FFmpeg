@@ -428,19 +428,21 @@ int parse_options(void *optctx, int argc, char **argv, const OptionDef *options,
     /* parse options */
     optindex = 1;
     while (optindex < argc) {
-        opt = argv[optindex++];
+        opt = argv[optindex++];/*取得参数*/
 
         if (handleoptions && opt[0] == '-' && opt[1] != '\0') {
             if (opt[1] == '-' && opt[2] == '\0') {
+            	/*遇到'--',表明选项处理结束*/
                 handleoptions = 0;
                 continue;
             }
-            opt++;
+            opt++;/*跳过第一个'-'*/
 
-            if ((ret = parse_option(optctx, opt, argv[optindex], options)) < 0)
+            if ((ret = parse_option(optctx, opt, argv[optindex]/*当前待处理的选项*/, options)) < 0)
                 return ret;
             optindex += ret;
         } else {
+        	/*遇到非选项,或者'-'*/
             if (parse_arg_function) {
                 ret = parse_arg_function(optctx, opt);
                 if (ret < 0)

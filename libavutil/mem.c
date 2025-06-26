@@ -219,7 +219,7 @@ void *av_realloc_array(void *ptr, size_t nmemb, size_t size)
     size_t result;
     if (size_mult(nmemb, size, &result) < 0)
         return NULL;
-    return av_realloc(ptr, result);
+    return av_realloc(ptr, result);/*申请nmemb*size大小的内存*/
 }
 
 int av_reallocp_array(void *ptr, size_t nmemb, size_t size)
@@ -248,11 +248,12 @@ void av_freep(void *arg)
 {
     void *val;
 
-    memcpy(&val, arg, sizeof(val));
-    memcpy(arg, &(void *){ NULL }, sizeof(val));
-    av_free(val);
+    memcpy(&val, arg, sizeof(val));/*保存旧值*/
+    memcpy(arg, &(void *){ NULL }, sizeof(val));/*赋空*/
+    av_free(val);/*释放*/
 }
 
+/*申请内存并将其初始化为零*/
 void *av_mallocz(size_t size)
 {
     void *ptr = av_malloc(size);

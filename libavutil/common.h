@@ -178,10 +178,10 @@ av_const int av_log2_16bit(unsigned v);
 static av_always_inline av_const int av_clip_c(int a, int amin, int amax)
 {
 #if defined(HAVE_AV_CONFIG_H) && defined(ASSERT_LEVEL) && ASSERT_LEVEL >= 2
-    if (amin > amax) abort();
+    if (amin > amax) abort();/*范围有误*/
 #endif
-    if      (a < amin) return amin;
-    else if (a > amax) return amax;
+    if      (a < amin) return amin;/*位于左侧,使用MIN*/
+    else if (a > amax) return amax;/*位于右侧,使用MAX*/
     else               return a;
 }
 

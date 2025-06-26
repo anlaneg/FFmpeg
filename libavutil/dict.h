@@ -71,16 +71,23 @@
  * Flags that influence behavior of the matching of keys or insertion to the dictionary.
  * @{
  */
+/*指明按大小写匹配*/
 #define AV_DICT_MATCH_CASE      1   /**< Only get an entry with exact-case key match. Only relevant in av_dict_get(). */
+/*指明匹配时容许忽略后缀*/
 #define AV_DICT_IGNORE_SUFFIX   2   /**< Return first entry in a dictionary whose first part corresponds to the search key,
                                          ignoring the suffix of the found key string. Only relevant in av_dict_get(). */
+/*指明不需要采用STRDUP复制KEY,直接指向*/
 #define AV_DICT_DONT_STRDUP_KEY 4   /**< Take ownership of a key that's been
                                          allocated with av_malloc() or another memory allocation function. */
+/*指明不需要采用STRDUP复制VAL,直接指向*/
 #define AV_DICT_DONT_STRDUP_VAL 8   /**< Take ownership of a value that's been
                                          allocated with av_malloc() or another memory allocation function. */
+/*如果KEY存在,则不更新*/
 #define AV_DICT_DONT_OVERWRITE 16   /**< Don't overwrite existing entries. */
+/*指明新内容附着到旧内容后面*/
 #define AV_DICT_APPEND         32   /**< If the entry already exists, append to it.  Note that no
                                          delimiter is added, the strings are simply concatenated. */
+/*容放存放多个相等的Key*/
 #define AV_DICT_MULTIKEY       64   /**< Allow to store several equal keys in the dictionary */
 #define AV_DICT_DEDUP         128   /**< If inserting a value that already exists for a key, do nothing. Only relevant with AV_DICT_MULTIKEY. */
 /**

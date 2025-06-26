@@ -200,7 +200,7 @@ typedef struct Decoder {
 
 typedef struct VideoState {
     SDL_Thread *read_tid;
-    const AVInputFormat *iformat;
+    const AVInputFormat *iformat;/*文件格式*/
     int abort_request;
     int force_refresh;
     int paused;
@@ -468,7 +468,7 @@ static int packet_queue_put_nullpacket(PacketQueue *q, AVPacket *pkt, int stream
 /* packet queue handling */
 static int packet_queue_init(PacketQueue *q)
 {
-    memset(q, 0, sizeof(PacketQueue));
+    memset(q, 0, sizeof(PacketQueue));/*清空结构体*/
     q->pkt_list = av_fifo_alloc2(1, sizeof(MyAVPacketList), AV_FIFO_FLAG_AUTO_GROW);
     if (!q->pkt_list)
         return AVERROR(ENOMEM);
@@ -688,7 +688,7 @@ static void frame_queue_unref_item(Frame *vp)
 static int frame_queue_init(FrameQueue *f, PacketQueue *pktq, int max_size, int keep_last)
 {
     int i;
-    memset(f, 0, sizeof(FrameQueue));
+    memset(f, 0, sizeof(FrameQueue));/*清空frameQueue*/
     if (!(f->mutex = SDL_CreateMutex())) {
         av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
         return AVERROR(ENOMEM);
@@ -697,9 +697,10 @@ static int frame_queue_init(FrameQueue *f, PacketQueue *pktq, int max_size, int 
         av_log(NULL, AV_LOG_FATAL, "SDL_CreateCond(): %s\n", SDL_GetError());
         return AVERROR(ENOMEM);
     }
-    f->pktq = pktq;
+    f->pktq = pktq;/*指向pktq*/
     f->max_size = FFMIN(max_size, FRAME_QUEUE_SIZE);
     f->keep_last = !!keep_last;
+    /*为frame队列中每个元素申请frame*/
     for (i = 0; i < f->max_size; i++)
         if (!(f->queue[i].frame = av_frame_alloc()))
             return AVERROR(ENOMEM);
@@ -1266,7 +1267,7 @@ static void stream_close(VideoState *is)
 {
     /* XXX: use a special url_shutdown call to abort parse cleanly */
     is->abort_request = 1;
-    SDL_WaitThread(is->read_tid, NULL);
+    SDL_WaitThread(is->read_tid, NULL);/*等待线程退出*/
 
     /* close each stream */
     if (is->audio_stream >= 0)
@@ -2847,7 +2848,7 @@ static int read_thread(void *arg)
     memset(st_index, -1, sizeof(st_index));
     is->eof = 0;
 
-    pkt = av_packet_alloc();
+    pkt = av_packet_alloc();/*初始化一个AV packet*/
     if (!pkt) {
         av_log(NULL, AV_LOG_FATAL, "Could not allocate packet.\n");
         ret = AVERROR(ENOMEM);
@@ -2862,10 +2863,11 @@ static int read_thread(void *arg)
     ic->interrupt_callback.callback = decode_interrupt_cb;
     ic->interrupt_callback.opaque = is;
     if (!av_dict_get(format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
+    	/*如果此KEY不存在,则添加此KEY,并指明VALUE为"1"*/
         av_dict_set(&format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
         scan_all_pmts_set = 1;
     }
-    err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);
+    err = avformat_open_input(&ic, is->filename, is->iformat, &format_opts);/*尝试打开文件*/
     if (err < 0) {
         print_error(is->filename, err);
         ret = -1;
@@ -3167,7 +3169,7 @@ static VideoState *stream_open(const char *filename,
     is->last_subtitle_stream = is->subtitle_stream = -1;
     is->filename = av_strdup(filename);
     if (!is->filename)
-        goto fail;
+        goto fail;/*如果复制文件名称失败,则报错*/
     is->iformat = iformat;
     is->ytop    = 0;
     is->xleft   = 0;
@@ -3198,12 +3200,12 @@ static VideoState *stream_open(const char *filename,
         av_log(NULL, AV_LOG_WARNING, "-volume=%d < 0, setting to 0\n", startup_volume);
     if (startup_volume > 100)
         av_log(NULL, AV_LOG_WARNING, "-volume=%d > 100, setting to 100\n", startup_volume);
-    startup_volume = av_clip(startup_volume, 0, 100);
+    startup_volume = av_clip(startup_volume, 0, 100);/*规范至0-100*/
     startup_volume = av_clip(SDL_MIX_MAXVOLUME * startup_volume / 100, 0, SDL_MIX_MAXVOLUME);
-    is->audio_volume = startup_volume;
+    is->audio_volume = startup_volume;/*设置音量*/
     is->muted = 0;
     is->av_sync_type = av_sync_type;
-    is->read_tid     = SDL_CreateThread(read_thread, "read_thread", is);
+    is->read_tid     = SDL_CreateThread(read_thread/*读线程*/, "read_thread", is/*线程参数*/);/*创建读线程*/
     if (!is->read_tid) {
         av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
 fail:
@@ -3620,14 +3622,15 @@ static int opt_show_mode(void *optctx, const char *opt, const char *arg)
 static int opt_input_file(void *optctx, const char *filename)
 {
     if (input_filename) {
+    	/*输入文件指定*/
         av_log(NULL, AV_LOG_FATAL,
                "Argument '%s' provided as input filename, but '%s' was already specified.\n",
                 filename, input_filename);
         return AVERROR(EINVAL);
     }
     if (!strcmp(filename, "-"))
-        filename = "fd:";
-    input_filename = av_strdup(filename);
+        filename = "fd:";/*输入文件来源于'-'*/
+    input_filename = av_strdup(filename);/*将此文件做为输入文件*/
     if (!input_filename)
         return AVERROR(ENOMEM);
 
@@ -3778,7 +3781,8 @@ int main(int argc, char **argv)
     /*显示版本信息及编译选项*/
     show_banner(argc, argv, options);
 
-    ret = parse_options(NULL, argc, argv, options, opt_input_file);
+    /*解析配置文件*/
+    ret = parse_options(NULL, argc, argv, options, opt_input_file/*设置input-file*/);
     if (ret < 0)
         exit(ret == AVERROR_EXIT ? 0 : 1);
 
@@ -3821,7 +3825,7 @@ int main(int argc, char **argv)
     	/*没有指明禁用显示*/
         int flags = SDL_WINDOW_HIDDEN;
         if (alwaysontop)
-        	/*指明了最前显示*/
+        	/*指明了总最前显示*/
 #if SDL_VERSION_ATLEAST(2,0,5)
             flags |= SDL_WINDOW_ALWAYS_ON_TOP;
 #else
@@ -3850,6 +3854,7 @@ int main(int argc, char **argv)
                 enable_vulkan = 0;
             }
         }
+        /*创建播放窗口*/
         window = SDL_CreateWindow(program_name, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, default_width, default_height, flags);
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
         if (!window) {
@@ -3890,6 +3895,7 @@ int main(int argc, char **argv)
         }
     }
 
+    /*打开stream*/
     is = stream_open(input_filename, file_iformat);
     if (!is) {
     	/*打开流失败*/
@@ -3897,7 +3903,7 @@ int main(int argc, char **argv)
         do_exit(NULL);
     }
 
-    event_loop(is);
+    event_loop(is);/*响应窗面事件*/
 
     /* never returns */
 

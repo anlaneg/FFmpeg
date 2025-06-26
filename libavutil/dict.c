@@ -30,8 +30,8 @@
 #include "bprint.h"
 
 struct AVDictionary {
-    int count;
-    AVDictionaryEntry *elems;
+    int count;/*elems元素数*/
+    AVDictionaryEntry *elems;/*entry数组*/
 };
 
 int av_dict_count(const AVDictionary *m)
@@ -48,15 +48,17 @@ const AVDictionaryEntry *av_dict_iterate(const AVDictionary *m,
         return NULL;
 
     if (prev)
+    	/*如果prev不为空,则找出prev当前指向的是元素编号的下一个*/
         i = prev - m->elems + 1;
 
     av_assert2(i >= 0);
     if (i >= m->count)
-        return NULL;
+        return NULL;/*索引越界*/
 
-    return &m->elems[i];
+    return &m->elems[i];/*返回下一个*/
 }
 
+/*在m中查找key,容许多次查找prev用于表示前一次匹配的情况,prev为NULL时会从第一个开始匹配*/
 AVDictionaryEntry *av_dict_get(const AVDictionary *m, const char *key,
                                const AVDictionaryEntry *prev, int flags)
 {
@@ -64,23 +66,29 @@ AVDictionaryEntry *av_dict_get(const AVDictionary *m, const char *key,
     unsigned int j;
 
     if (!key)
+    	/*没有指定KEY,直接返回空*/
         return NULL;
 
+    /*遍历dict下所有元素*/
     while ((entry = av_dict_iterate(m, entry))) {
         const char *s = entry->key;
         if (flags & AV_DICT_MATCH_CASE)
+        	/*区分大小写式匹配*/
             for (j = 0; s[j] == key[j] && key[j]; j++)
                 ;
         else
+        	/*统一转换为大写进行匹配*/
             for (j = 0; av_toupper(s[j]) == av_toupper(key[j]) && key[j]; j++)
                 ;
+        /*KEY没有被匹配完,失配*/
         if (key[j])
             continue;
+        /*如果src key没有匹配完,检查是否容许忽略后缀*/
         if (s[j] && !(flags & AV_DICT_IGNORE_SUFFIX))
             continue;
-        return (AVDictionaryEntry *)entry;
+        return (AVDictionaryEntry *)entry;/*返回匹配结果*/
     }
-    return NULL;
+    return NULL;/*失配*/
 }
 
 int av_dict_set(AVDictionary **pm, const char *key, const char *value,
@@ -94,24 +102,26 @@ int av_dict_set(AVDictionary **pm, const char *key, const char *value,
     if (flags & AV_DICT_DONT_STRDUP_VAL)
         copy_value = (void *)value;
     else if (value)
-        copy_value = av_strdup(value);
+        copy_value = av_strdup(value);/*采用strdup复制value*/
     if (!key) {
         err = AVERROR(EINVAL);
-        goto err_out;
+        goto err_out;/*没有指定key报错*/
     }
     if (flags & AV_DICT_DONT_STRDUP_KEY)
         copy_key = (void *)key;
     else
-        copy_key = av_strdup(key);
+        copy_key = av_strdup(key);/*采用strdup复制key*/
     if (!copy_key || (value && !copy_value))
-        goto enomem;
+        goto enomem;/*复制KEY实败*/
 
     if (!(flags & AV_DICT_MULTIKEY)) {
+    	/*查找key*/
         tag = av_dict_get(m, key, NULL, flags);
     } else if (flags & AV_DICT_DEDUP) {
         while ((tag = av_dict_get(m, key, tag, flags))) {
             if ((!value && !tag->value) ||
                 (value && tag->value && !strcmp(value, tag->value))) {
+            	/*待添加的内容已存在,释放掉准备的数据,然后直接成功返回*/
                 av_free(copy_key);
                 av_free(copy_value);
                 return 0;
@@ -119,17 +129,21 @@ int av_dict_set(AVDictionary **pm, const char *key, const char *value,
         }
     }
     if (!m)
+    	/*需要创建DICT*/
         m = *pm = av_mallocz(sizeof(*m));
     if (!m)
         goto enomem;
 
     if (tag) {
+    	/*已存在,需要更新此内容*/
         if (flags & AV_DICT_DONT_OVERWRITE) {
+        	/*指明不更新,成功返回*/
             av_free(copy_key);
             av_free(copy_value);
             return 0;
         }
         if (copy_value && flags & AV_DICT_APPEND) {
+        	/*指明新内容附着到旧内容后面*/
             size_t oldlen = strlen(tag->value);
             size_t new_part_len = strlen(copy_value);
             size_t len = oldlen + new_part_len + 1;
@@ -140,7 +154,7 @@ int av_dict_set(AVDictionary **pm, const char *key, const char *value,
             av_freep(&copy_value);
             copy_value = newval;
         } else
-            av_free(tag->value);
+            av_free(tag->value);/*释放旧内容*/
         av_free(tag->key);
         *tag = m->elems[--m->count];
     } else if (copy_value) {
@@ -151,9 +165,10 @@ int av_dict_set(AVDictionary **pm, const char *key, const char *value,
         m->elems = tmp;
     }
     if (copy_value) {
+    	/*存入key,value*/
         m->elems[m->count].key = copy_key;
         m->elems[m->count].value = copy_value;
-        m->count++;
+        m->count++;/*dict元素数增加*/
     } else {
         err = 0;
         goto end;
@@ -236,14 +251,16 @@ void av_dict_free(AVDictionary **pm)
 
     if (m) {
         while (m->count--) {
+        	/*释放key,value*/
             av_freep(&m->elems[m->count].key);
             av_freep(&m->elems[m->count].value);
         }
-        av_freep(&m->elems);
+        av_freep(&m->elems);/*释放元素*/
     }
     av_freep(pm);
 }
 
+/*制作dict副本*/
 int av_dict_copy(AVDictionary **dst, const AVDictionary *src, int flags)
 {
     const AVDictionaryEntry *t = NULL;

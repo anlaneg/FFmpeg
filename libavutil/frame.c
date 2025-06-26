@@ -28,6 +28,7 @@
 #include "side_data.h"
 #include "hwcontext.h"
 
+/*初始化avframe*/
 static void get_frame_defaults(AVFrame *frame)
 {
     memset(frame, 0, sizeof(*frame));
@@ -48,6 +49,7 @@ static void get_frame_defaults(AVFrame *frame)
     frame->flags               = 0;
 }
 
+/*申请并初始化AVframe*/
 AVFrame *av_frame_alloc(void)
 {
     AVFrame *frame = av_malloc(sizeof(*frame));

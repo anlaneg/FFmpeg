@@ -1968,6 +1968,7 @@ int av_opt_set_dict2(void *obj, AVDictionary **options, int search_flags)
     if (!options)
         return 0;
 
+    /*遍历options,将其中所有元素???*/
     while ((t = av_dict_iterate(*options, t))) {
         ret = av_opt_set(obj, t->key, t->value, search_flags);
         if (ret == AVERROR_OPTION_NOT_FOUND)

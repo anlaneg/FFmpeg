@@ -35,16 +35,16 @@
 struct AVFifo {
     uint8_t *buffer;
 
-    size_t elem_size, nb_elems;
+    size_t elem_size/*元素大小*/, nb_elems;/*元素数*/
     size_t offset_r, offset_w;
     // distinguishes the ambiguous situation offset_r == offset_w
-    int    is_empty;
+    int    is_empty;/*QUEUE是否为空*/
 
-    unsigned int flags;
-    size_t       auto_grow_limit;
+    unsigned int flags;/*标记,例如指明容许自动增长*/
+    size_t       auto_grow_limit;/*自动增长极限*/
 };
 
-AVFifo *av_fifo_alloc2(size_t nb_elems, size_t elem_size,
+AVFifo *av_fifo_alloc2(size_t nb_elems/*元素数*/, size_t elem_size/*元素大小*/,
                        unsigned int flags)
 {
     AVFifo *f;

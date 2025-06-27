@@ -2096,7 +2096,7 @@ const URLProtocol ff_http_protocol = {
 HTTP_CLASS(https);
 
 const URLProtocol ff_https_protocol = {
-    .name                = "https",
+    .name                = "https",/*https方式*/
     .url_open2           = http_open,
     .url_read            = http_read,
     .url_write           = http_write,

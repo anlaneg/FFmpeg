@@ -128,7 +128,7 @@ const URLProtocol **ffurl_get_protocols(const char *whitelist,
     const URLProtocol **ret;
     int i, ret_idx = 0;
 
-    ret = av_calloc(FF_ARRAY_ELEMS(url_protocols), sizeof(*ret));
+    ret = av_calloc(FF_ARRAY_ELEMS(url_protocols), sizeof(*ret));/*申请并清零*/
     if (!ret)
         return NULL;
 
@@ -136,11 +136,11 @@ const URLProtocol **ffurl_get_protocols(const char *whitelist,
         const URLProtocol *up = url_protocols[i];
 
         if (whitelist && *whitelist && !av_match_name(up->name, whitelist))
-            continue;
+            continue;/*白名单不匹配，继续*/
         if (blacklist && *blacklist && av_match_name(up->name, blacklist))
-            continue;
+            continue;/*黑名单匹配，继续*/
 
-        ret[ret_idx++] = up;
+        ret[ret_idx++] = up;/*此协议可用*/
     }
 
     return ret;

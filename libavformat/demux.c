@@ -215,7 +215,7 @@ static int update_stream_avctx(AVFormatContext *s)
     return 0;
 }
 
-int avformat_open_input(AVFormatContext **ps, const char *filename,
+int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径*/,
                         const AVInputFormat *fmt, AVDictionary **options)
 {
     FormatContextInternal *fci;

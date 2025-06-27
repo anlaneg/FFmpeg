@@ -150,7 +150,7 @@ const AVInputFormat *av_find_input_format(const char *short_name)
     void *i = 0;
     while ((fmt = av_demuxer_iterate(&i)))
         if (av_match_name(short_name, fmt->name))
-            return fmt;
+            return fmt;/*名称匹配，返回格式*/
     return NULL;
 }
 

@@ -3580,7 +3580,7 @@ static int opt_height(void *optctx, const char *opt, const char *arg)
 
 static int opt_format(void *optctx, const char *opt, const char *arg)
 {
-    file_iformat = av_find_input_format(arg);
+    file_iformat = av_find_input_format(arg);/*查找arg对应的文件格式*/
     if (!file_iformat) {
         av_log(NULL, AV_LOG_FATAL, "Unknown input format: %s\n", arg);
         return AVERROR(EINVAL);
@@ -3685,7 +3685,7 @@ static const OptionDef options[] = {
     { "noborder",           OPT_TYPE_BOOL,            0, { &borderless }, "borderless window" },
     { "alwaysontop",        OPT_TYPE_BOOL,            0, { &alwaysontop }, "window always on top" },
     { "volume",             OPT_TYPE_INT,             0, { &startup_volume}, "set startup volume 0=min 100=max", "volume" },
-    { "f",                  OPT_TYPE_FUNC, OPT_FUNC_ARG, { .func_arg = opt_format }, "force format", "fmt" },
+    { "f",                  OPT_TYPE_FUNC, OPT_FUNC_ARG, { .func_arg = opt_format }, "force format", "fmt" },/*指定文件格式*/
     { "stats",              OPT_TYPE_BOOL,   OPT_EXPERT, { &show_status }, "show status", "" },
     { "fast",               OPT_TYPE_BOOL,   OPT_EXPERT, { &fast }, "non spec compliant optimizations", "" },
     { "genpts",             OPT_TYPE_BOOL,   OPT_EXPERT, { &genpts }, "generate pts", "" },

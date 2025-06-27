@@ -355,7 +355,7 @@ int av_match_name(const char *name, const char *names)
     namelen = strlen(name);/*待匹配的名称*/
     /*遍历扩展名称*/
     while (*names) {
-        int negate = '-' == *names;
+        int negate = '-' == *names;/*是否对结果取反*/
         p = strchr(names, ',');
         if (!p)
             p = names + strlen(names);/*没有遇到逗号,则指向结尾*/

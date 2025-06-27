@@ -30,12 +30,14 @@
 #include "libavutil/log.h"
 
 #define URL_PROTOCOL_FLAG_NESTED_SCHEME 1 /*< The protocol name can be the first part of a nested protocol scheme */
+/*标记需要使用网络*/
 #define URL_PROTOCOL_FLAG_NETWORK       2 /*< The protocol uses network */
 
 typedef struct URLContext {
     const AVClass *av_class;    /**< information for av_log(). Set by url_open(). */
-    const struct URLProtocol *prot;
+    const struct URLProtocol *prot;/*使用哪种url协议，例如url_protocols*/
     void *priv_data;
+    /*文件路径*/
     char *filename;             /**< specified URL */
     int flags;
     int max_packet_size;        /**< if non zero, the stream is packetized with this max packet size */
@@ -49,7 +51,7 @@ typedef struct URLContext {
 } URLContext;
 
 typedef struct URLProtocol {
-    const char *name;
+    const char *name;/*协议名称*/
     int     (*url_open)( URLContext *h, const char *url, int flags);
     /**
      * This callback is to be used by protocols which open further nested

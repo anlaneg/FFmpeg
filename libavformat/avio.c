@@ -115,23 +115,26 @@ URLContext *ffio_geturlcontext(AVIOContext *s)
         return NULL;
 }
 
-static int url_alloc_for_protocol(URLContext **puc, const URLProtocol *up,
+static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol *up,
                                   const char *filename, int flags,
-                                  const AVIOInterruptCB *int_cb)
+                                  const AVIOInterruptCB *int_cb/*中断回调*/)
 {
     URLContext *uc;
     int err;
 
 #if CONFIG_NETWORK
     if (up->flags & URL_PROTOCOL_FLAG_NETWORK && !ff_network_init())
+    	/*URL协议需要使用网络，且初始化网络失败，报错*/
         return AVERROR(EIO);
 #endif
     if ((flags & AVIO_FLAG_READ) && !up->url_read) {
+    	/*有读标记，但没有提供read函数，报错*/
         av_log(NULL, AV_LOG_ERROR,
                "Impossible to open the '%s' protocol for reading\n", up->name);
         return AVERROR(EIO);
     }
     if ((flags & AVIO_FLAG_WRITE) && !up->url_write) {
+    	/*有写标记，但没有提供write函数，报错*/
         av_log(NULL, AV_LOG_ERROR,
                "Impossible to open the '%s' protocol for writing\n", up->name);
         return AVERROR(EIO);
@@ -142,8 +145,8 @@ static int url_alloc_for_protocol(URLContext **puc, const URLProtocol *up,
         goto fail;
     }
     uc->av_class = &url_context_class;
-    uc->filename = (char *)&uc[1];
-    strcpy(uc->filename, filename);
+    uc->filename = (char *)&uc[1];/*设置filename指针*/
+    strcpy(uc->filename, filename);/*填充filename*/
     uc->prot            = up;
     uc->flags           = flags;
     uc->is_streamed     = 0; /* default = not streamed */
@@ -314,7 +317,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
     if (filename[proto_len] != ':' &&
         (strncmp(filename, "subfile,", 8) || !strchr(filename + proto_len + 1, ':')) ||
         is_dos_path(filename))
-        strcpy(proto_str, "file");
+        strcpy(proto_str, "file");/*设置协议名称为file*/
     else
         av_strlcpy(proto_str, filename,
                    FFMIN(proto_len + 1, sizeof(proto_str)));
@@ -323,14 +326,16 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
     if ((ptr = strchr(proto_nested, '+')))
         *ptr = '\0';
 
+    /*取全部协议*/
     protocols = ffurl_get_protocols(NULL, NULL);
     if (!protocols)
         return NULL;
+    /*遍历所有协议*/
     for (i = 0; protocols[i]; i++) {
             const URLProtocol *up = protocols[i];
         if (!strcmp(proto_str, up->name)) {
             av_freep(&protocols);
-            return up;
+            return up;/*协议名称匹配，返回此协议*/
         }
         if (up->flags & URL_PROTOCOL_FLAG_NESTED_SCHEME &&
             !strcmp(proto_nested, up->name)) {
@@ -339,6 +344,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
         }
     }
     av_freep(&protocols);
+    /*没有找到协议，但针对https,tls等显示告警*/
     if (av_strstart(filename, "https:", NULL) || av_strstart(filename, "tls:", NULL) ||
         av_strstart(filename, "dtls:", NULL))
         av_log(NULL, AV_LOG_WARNING, "https or dtls protocol not found, recompile FFmpeg with "
@@ -352,7 +358,7 @@ int ffurl_alloc(URLContext **puc, const char *filename, int flags,
 {
     const URLProtocol *p = NULL;
 
-    p = url_find_protocol(filename);
+    p = url_find_protocol(filename);/*利用文件名称查询采用哪种url协议*/
     if (p)
        return url_alloc_for_protocol(puc, p, filename, flags, int_cb);
 
@@ -367,7 +373,7 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
 {
     AVDictionary *tmp_opts = NULL;
     AVDictionaryEntry *e;
-    int ret = ffurl_alloc(puc, filename, flags, int_cb);
+    int ret = ffurl_alloc(puc/*出参，创建context*/, filename, flags, int_cb);
     if (ret < 0)
         return ret;
     if (parent) {

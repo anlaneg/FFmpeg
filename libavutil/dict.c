@@ -100,14 +100,17 @@ int av_dict_set(AVDictionary **pm, const char *key, const char *value,
     int err;
 
     if (flags & AV_DICT_DONT_STRDUP_VAL)
+    	/*指明value不能采用strdup复制*/
         copy_value = (void *)value;
     else if (value)
         copy_value = av_strdup(value);/*采用strdup复制value*/
     if (!key) {
+    	/*必须指明key*/
         err = AVERROR(EINVAL);
         goto err_out;/*没有指定key报错*/
     }
     if (flags & AV_DICT_DONT_STRDUP_KEY)
+    	/*指明key不能采用strdup复制*/
         copy_key = (void *)key;
     else
         copy_key = av_strdup(key);/*采用strdup复制key*/

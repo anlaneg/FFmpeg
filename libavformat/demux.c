@@ -183,6 +183,7 @@ static int init_input(AVFormatContext *s, const char *filename,
 
     if (s->iformat)
         return 0;
+    /*检查并设置文件格式*/
     return av_probe_input_buffer2(s->pb, &s->iformat/*出参,输入文件格式*/, filename,
                                   s, 0, s->format_probesize);
 }
@@ -271,6 +272,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
     }
 
     if (s->format_whitelist && av_match_list(s->iformat->name, s->format_whitelist, ',') <= 0) {
+    	/*指定了白名单,但文件FORMAT不在白名单内*/
         av_log(s, AV_LOG_ERROR, "Format not on whitelist \'%s\'\n", s->format_whitelist);
         ret = AVERROR(EINVAL);
         goto fail;
@@ -307,6 +309,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
         ff_id3v2_read_dict(s->pb, &si->id3v2_meta, ID3v2_DEFAULT_MAGIC, &id3v2_extra_meta);
 
     if (ffifmt(s->iformat)->read_header)
+    	/*有read_header回调,执行此问调读取header*/
         if ((ret = ffifmt(s->iformat)->read_header(s)) < 0) {
             if (ffifmt(s->iformat)->flags_internal & FF_INFMT_FLAG_INIT_CLEANUP)
                 goto close;

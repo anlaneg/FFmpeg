@@ -33,6 +33,7 @@
 #include "error.h"
 #include "macros.h"
 
+/*检查字符串str是否以pfx开头,如果是,则丢掉前缀*/
 int av_strstart(const char *str, const char *pfx, const char **ptr)
 {
     while (*pfx && *pfx == *str) {
@@ -448,12 +449,14 @@ int av_match_list(const char *name, const char *list, char separator)
 {
     const char *p, *q;
 
+    /*遍历name每个元素*/
     for (p = name; p && *p; ) {
+    	/*遍历list每个元素*/
         for (q = list; q && *q; ) {
             int k;
-            for (k = 0; p[k] == q[k] || (p[k]*q[k] == 0 && p[k]+q[k] == separator); k++)
+            for (k = 0; p[k] == q[k] || (p[k]*q[k] == 0/*有一个为'\0'*/ && p[k]+q[k] == separator/*一个到达结尾一个达到分隔符*/); k++)
                 if (k && (!p[k] || p[k] == separator))
-                    return 1;
+                    return 1;/*命中*/
             q = strchr(q, separator);
             if(q)
                 q++;

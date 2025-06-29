@@ -151,6 +151,7 @@ static int io_open_default(AVFormatContext *s, AVIOContext **pb,
 
     av_log(s, loglevel, "Opening \'%s\' for %s\n", url, flags & AVIO_FLAG_WRITE ? "writing" : "reading");
 
+    /*执行文件打开*/
     return ffio_open_whitelist(pb, url, flags, &s->interrupt_callback, options, s->protocol_whitelist, s->protocol_blacklist);
 }
 
@@ -172,7 +173,7 @@ AVFormatContext *avformat_alloc_context(void)
     si = &fci->fc;
     s = &si->pub;
     s->av_class = &av_format_context_class;
-    s->io_open  = io_open_default;
+    s->io_open  = io_open_default;/*文件打开*/
     s->io_close2= io_close2_default;
 
     av_opt_set_defaults(s);

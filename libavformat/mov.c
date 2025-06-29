@@ -10458,6 +10458,7 @@ static void fix_stream_ids(AVFormatContext *s)
     }
 }
 
+/*读取header*/
 static int mov_read_header(AVFormatContext *s)
 {
     MOVContext *mov = s->priv_data;
@@ -10469,7 +10470,7 @@ static int mov_read_header(AVFormatContext *s)
     if (mov->decryption_key_len != 0 && mov->decryption_key_len != AES_CTR_KEY_SIZE) {
         av_log(s, AV_LOG_ERROR, "Invalid decryption key len %d expected %d\n",
             mov->decryption_key_len, AES_CTR_KEY_SIZE);
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*加密KEY长度有误*/
     }
 
     mov->fc = s;

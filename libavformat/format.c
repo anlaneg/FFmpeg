@@ -195,7 +195,7 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
             continue;
         score = 0;
         if (ffifmt(fmt1)->read_probe) {
-	    /*利用read_probe函数来探测文件格式*/
+        	/*利用read_probe函数来探测文件格式*/
             score = ffifmt(fmt1)->read_probe(&lpd);
             if (score)
             	/*显示得分*/
@@ -237,7 +237,7 @@ const AVInputFormat *av_probe_input_format3(const AVProbeData *pd,
         score_max = FFMIN(AVPROBE_SCORE_EXTENSION / 2 - 1, score_max);
     *score_ret = score_max;
 
-    return fmt;
+    return fmt;/*返回命中的格式,例如:ff_mov_demuxer*/
 }
 
 const AVInputFormat *av_probe_input_format2(const AVProbeData *pd,
@@ -258,7 +258,8 @@ const AVInputFormat *av_probe_input_format(const AVProbeData *pd, int is_opened)
     return av_probe_input_format2(pd, is_opened, &score);
 }
 
-int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt,
+/*检测文件格式*/
+int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt/*出参,文件格式*/,
                            const char *filename, void *logctx,
                            unsigned int offset, unsigned int max_probe_size)
 {
@@ -318,7 +319,7 @@ int av_probe_input_buffer2(AVIOContext *pb, const AVInputFormat **fmt,
         memset(pd.buf + pd.buf_size, 0, AVPROBE_PADDING_SIZE);
 
         /* Guess file format. */
-        *fmt = av_probe_input_format2(&pd, 1, &score);
+        *fmt = av_probe_input_format2(&pd, 1, &score);/*检测并获得文件格式*/
         if (*fmt) {
             /* This can only be true in the last iteration. */
             if (score <= AVPROBE_SCORE_RETRY) {

@@ -1275,7 +1275,7 @@ typedef struct AVFormatContext {
      *
      * Demuxing only, set by avformat_open_input().
      */
-    const struct AVInputFormat *iformat;/*输入格式*/
+    const struct AVInputFormat *iformat;/*输入格式,例如ff_mov_demuxer*/
 
     /**
      * The output container format.

@@ -95,6 +95,7 @@ static int size_mult(size_t a, size_t b, size_t *r)
     return 0;
 }
 
+/*申请内存空间*/
 void *av_malloc(size_t size)
 {
     void *ptr = NULL;

@@ -137,7 +137,7 @@ typedef struct FFInputFormat {
 
 static inline const FFInputFormat *ffifmt(const AVInputFormat *fmt)
 {
-    return (const FFInputFormat*)fmt;
+    return (const FFInputFormat*)fmt;/*强转类型*/
 }
 
 #define MAX_STD_TIMEBASES (30*12+30+3+6)

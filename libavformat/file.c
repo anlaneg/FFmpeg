@@ -91,8 +91,8 @@
 
 typedef struct FileContext {
     const AVClass *class;
-    int fd;
-    int trunc;
+    int fd;/*文件对应的FD*/
+    int trunc;/*是否截短*/
     int blocksize;
     int follow;
     int seekable;
@@ -237,7 +237,7 @@ static int64_t file_seek(URLContext *h, int64_t pos, int whence)
         return ret < 0 ? AVERROR(errno) : (S_ISFIFO(st.st_mode) ? 0 : st.st_size);
     }
 
-    ret = lseek(c->fd, pos, whence);
+    ret = lseek(c->fd, pos, whence);/*修改文件偏移位置*/
 
     return ret < 0 ? AVERROR(errno) : ret;
 }
@@ -280,6 +280,7 @@ static int file_move(URLContext *h_src, URLContext *h_dst)
     return 0;
 }
 
+/*用于打开文件*/
 static int file_open(URLContext *h, const char *filename, int flags)
 {
     FileContext *c = h->priv_data;
@@ -287,26 +288,29 @@ static int file_open(URLContext *h, const char *filename, int flags)
     int fd;
     struct stat st;
 
-    av_strstart(filename, "file:", &filename);
+    av_strstart(filename, "file:", &filename);/*丢掉前缀*/
 
     if (flags & AVIO_FLAG_WRITE && flags & AVIO_FLAG_READ) {
+    	/*指明了读写权限*/
         access = O_CREAT | O_RDWR;
         if (c->trunc)
             access |= O_TRUNC;
     } else if (flags & AVIO_FLAG_WRITE) {
+    	/*指明了写权限*/
         access = O_CREAT | O_WRONLY;
         if (c->trunc)
             access |= O_TRUNC;
     } else {
+    	/*只读权限*/
         access = O_RDONLY;
     }
 #ifdef O_BINARY
     access |= O_BINARY;
 #endif
-    fd = avpriv_open(filename, access, 0666);
+    fd = avpriv_open(filename, access, 0666);/*打开文件*/
     if (fd == -1)
         return AVERROR(errno);
-    c->fd = fd;
+    c->fd = fd;/*填充文件对应的FD*/
 
     h->is_streamed = !fstat(fd, &st) && S_ISFIFO(st.st_mode);
 

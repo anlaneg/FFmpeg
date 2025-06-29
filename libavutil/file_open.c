@@ -82,7 +82,7 @@ int avpriv_open(const char *filename, int flags, ...)
     flags |= O_NOINHERIT;
 #endif
 
-    fd = open(filename, flags, mode);
+    fd = open(filename, flags, mode);/*打开文件*/
 #if HAVE_FCNTL
     if (fd != -1) {
         if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)

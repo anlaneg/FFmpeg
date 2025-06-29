@@ -36,13 +36,14 @@
 typedef struct URLContext {
     const AVClass *av_class;    /**< information for av_log(). Set by url_open(). */
     const struct URLProtocol *prot;/*使用哪种url协议，例如url_protocols*/
-    void *priv_data;
+    void *priv_data;/*prot保存的私有数据*/
     /*文件路径*/
     char *filename;             /**< specified URL */
     int flags;
     int max_packet_size;        /**< if non zero, the stream is packetized with this max packet size */
+    /*是否为流式文件*/
     int is_streamed;            /**< true if streamed (no seek possible), default = false */
-    int is_connected;
+    int is_connected;/*是否已完成连接*/
     AVIOInterruptCB interrupt_callback;
     int64_t rw_timeout;         /**< maximum time to wait for (network) read/write operation completion, in mcs */
     const char *protocol_whitelist;

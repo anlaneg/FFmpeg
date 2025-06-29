@@ -115,7 +115,7 @@ URLContext *ffio_geturlcontext(AVIOContext *s)
         return NULL;
 }
 
-static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol *up,
+static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol *up/*此url将使用的协议*/,
                                   const char *filename, int flags,
                                   const AVIOInterruptCB *int_cb/*中断回调*/)
 {
@@ -147,7 +147,7 @@ static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol 
     uc->av_class = &url_context_class;
     uc->filename = (char *)&uc[1];/*设置filename指针*/
     strcpy(uc->filename, filename);/*填充filename*/
-    uc->prot            = up;
+    uc->prot            = up;/*指明此文件将使用的协议*/
     uc->flags           = flags;
     uc->is_streamed     = 0; /* default = not streamed */
     uc->max_packet_size = 0; /* default: stream file */
@@ -205,6 +205,7 @@ fail:
     return err;
 }
 
+/*依据options连接文件*/
 int ffurl_connect(URLContext *uc, AVDictionary **options)
 {
     int err;
@@ -220,37 +221,43 @@ int ffurl_connect(URLContext *uc, AVDictionary **options)
     av_assert0(!(e=av_dict_get(*options, "protocol_blacklist", NULL, 0)) ||
                (uc->protocol_blacklist && !strcmp(uc->protocol_blacklist, e->value)));
 
+    /*直接使用uc中保存的list,检查是否与prot->name匹配*/
     if (uc->protocol_whitelist && av_match_list(uc->prot->name, uc->protocol_whitelist, ',') <= 0) {
         av_log(uc, AV_LOG_ERROR, "Protocol '%s' not on whitelist '%s'!\n", uc->prot->name, uc->protocol_whitelist);
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*白名单未放通*/
     }
 
     if (uc->protocol_blacklist && av_match_list(uc->prot->name, uc->protocol_blacklist, ',') > 0) {
         av_log(uc, AV_LOG_ERROR, "Protocol '%s' on blacklist '%s'!\n", uc->prot->name, uc->protocol_blacklist);
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*包含在黑名单中*/
     }
 
     if (!uc->protocol_whitelist && uc->prot->default_whitelist) {
+    	/*未指明白名单,但协议有明确的白名单,例如:'"file,crypto,data"',更新白名单*/
         av_log(uc, AV_LOG_DEBUG, "Setting default whitelist '%s'\n", uc->prot->default_whitelist);
         uc->protocol_whitelist = av_strdup(uc->prot->default_whitelist);
         if (!uc->protocol_whitelist) {
             return AVERROR(ENOMEM);
         }
     } else if (!uc->protocol_whitelist)
+    	/*协议也没有白名单*/
         av_log(uc, AV_LOG_DEBUG, "No default whitelist set\n"); // This should be an error once all declare a default whitelist
 
+    /*更新options*/
     if ((err = av_dict_set(options, "protocol_whitelist", uc->protocol_whitelist, 0)) < 0)
         return err;
     if ((err = av_dict_set(options, "protocol_blacklist", uc->protocol_blacklist, 0)) < 0)
         return err;
 
+    /*协议有url_open2接口的优先使用open2接口*/
     err =
         uc->prot->url_open2 ? uc->prot->url_open2(uc,
                                                   uc->filename,
                                                   uc->flags,
                                                   options) :
-        uc->prot->url_open(uc, uc->filename, uc->flags);
+        uc->prot->url_open(uc, uc->filename, uc->flags);/*例如:file_open*/
 
+    /*清空黑白名单*/
     av_dict_set(options, "protocol_whitelist", NULL, 0);
     av_dict_set(options, "protocol_blacklist", NULL, 0);
 
@@ -260,6 +267,7 @@ int ffurl_connect(URLContext *uc, AVDictionary **options)
     /* We must be careful here as ffurl_seek() could be slow,
      * for example for http */
     if ((uc->flags & AVIO_FLAG_WRITE) || !strcmp(uc->prot->name, "file"))
+    	/*对于非STREAM设置至起始位置*/
         if (!uc->is_streamed && ffurl_seek(uc, 0, SEEK_SET) < 0)
             uc->is_streamed = 1;
     return 0;
@@ -311,7 +319,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
 {
     const URLProtocol **protocols;
     char proto_str[128], proto_nested[128], *ptr;
-    size_t proto_len = strspn(filename, URL_SCHEME_CHARS);
+    size_t proto_len = strspn(filename, URL_SCHEME_CHARS);/*遇到非url字符,记录长度(即协议长度)*/
     int i;
 
     if (filename[proto_len] != ':' &&
@@ -320,10 +328,10 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
         strcpy(proto_str, "file");/*设置协议名称为file*/
     else
         av_strlcpy(proto_str, filename,
-                   FFMIN(proto_len + 1, sizeof(proto_str)));
+                   FFMIN(proto_len + 1, sizeof(proto_str)));/*取协议名称*/
 
     av_strlcpy(proto_nested, proto_str, sizeof(proto_nested));
-    if ((ptr = strchr(proto_nested, '+')))
+    if ((ptr = strchr(proto_nested, '+')))/*移除'+'号以后的内容*/
         *ptr = '\0';
 
     /*取全部协议*/
@@ -398,6 +406,7 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
                !(e=av_dict_get(*options, "protocol_blacklist", NULL, 0)) ||
                !strcmp(blacklist, e->value));
 
+    /*设置协议白名单*/
     if ((ret = av_dict_set(options, "protocol_whitelist", whitelist, 0)) < 0)
         goto fail;
 
@@ -407,7 +416,7 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
     if ((ret = av_opt_set_dict(*puc, options)) < 0)
         goto fail;
 
-    ret = ffurl_connect(*puc, options);
+    ret = ffurl_connect(*puc, options);/*完成连接(对于普通文件会执行打开关将读写头置于起始位置)*/
 
     if (!ret)
         return 0;
@@ -426,14 +435,14 @@ int ffio_fdopen(AVIOContext **sp, URLContext *h)
     if (max_packet_size) {
         buffer_size = max_packet_size; /* no need to bufferize more than one packet */
     } else {
-        buffer_size = IO_BUFFER_SIZE;
+        buffer_size = IO_BUFFER_SIZE;/*未指明使用IO大小*/
     }
     if (!(h->flags & AVIO_FLAG_WRITE) && h->is_streamed) {
         if (buffer_size > INT_MAX/2)
             return AVERROR(EINVAL);
-        buffer_size *= 2;
+        buffer_size *= 2;/*没有写操作且为STREAM的,BUFFER扩大*/
     }
-    buffer = av_malloc(buffer_size);
+    buffer = av_malloc(buffer_size);/*申请空间*/
     if (!buffer)
         return AVERROR(ENOMEM);
 
@@ -581,6 +590,7 @@ int ffurl_write2(void *urlcontext, const uint8_t *buf, int size)
     return retry_transfer_wrapper(h, NULL, buf, size, size, 0);
 }
 
+/*切到指定位置*/
 int64_t ffurl_seek2(void *urlcontext, int64_t pos, int whence)
 {
     URLContext *h = urlcontext;

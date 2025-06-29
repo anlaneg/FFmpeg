@@ -258,7 +258,7 @@ typedef struct AVIOContext {
     /**
      * A combination of AVIO_SEEKABLE_ flags or 0 when the stream is not seekable.
      */
-    int seekable;
+    int seekable;/*是否可以seek调整读写位置*/
 
     /**
      * avio_read and avio_write should if possible be satisfied directly

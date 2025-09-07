@@ -43,6 +43,7 @@
 
 #include <float.h>
 
+/*数组类型为复合类型,这里只取基本类型*/
 #define TYPE_BASE(type) ((type) & ~AV_OPT_TYPE_FLAG_ARRAY)
 
 const AVOption *av_opt_next(const void *obj, const AVOption *last)
@@ -52,10 +53,10 @@ const AVOption *av_opt_next(const void *obj, const AVOption *last)
         return NULL;
     class = *(const AVClass**)obj;
     if (!last && class && class->option && class->option[0].name)
-        return class->option;
+        return class->option;/*未指明last,且首个可用,返回首个option*/
     if (last && last[1].name)
-        return ++last;
-    return NULL;
+        return ++last;/*返回下一个option*/
+    return NULL;/*已达结尾,返回NULL*/
 }
 
 static const struct {
@@ -165,19 +166,22 @@ static void opt_free_array(const AVOption *o, void *parray, unsigned *count)
  */
 static int opt_set_init(void *obj, const char *name, int search_flags,
                         int require_type,
-                        void **ptgt, const AVOption **po, void **pdst)
+                        void **ptgt/*出参,要设置的obj*/, const AVOption **po/*出参,name对应的option(针对obj)*/, void **pdst/*出参,要设置的内容对应的指针*/)
 {
     const AVOption *o;
     void *tgt;
 
+    /*在obj中名称为NAME的OPTION*/
     o = av_opt_find2(obj, name, NULL, 0, search_flags, &tgt);
     if (!o || !tgt)
+    	/*未查找到此option*/
         return AVERROR_OPTION_NOT_FOUND;
 
     if (o->flags & AV_OPT_FLAG_READONLY)
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*此选项只读,当前为set,故失败*/
 
     if (require_type && (o->type != require_type)) {
+    	/*opt类型与预期的不一致,报错*/
         av_log(obj, AV_LOG_ERROR,
                "Tried to set option '%s' of type %s from value of type %s, "
                "this is not supported\n", o->name, opt_type_desc[o->type].name,
@@ -226,7 +230,7 @@ static int opt_set_init(void *obj, const char *name, int search_flags,
     if (ptgt)
         *ptgt = tgt;
     if (pdst)
-        *pdst = ((uint8_t *)tgt) + o->offset;
+        *pdst = ((uint8_t *)tgt) + o->offset;/*由tgt推算目标位置*/
 
     return 0;
 }
@@ -404,7 +408,7 @@ static int set_string(void *obj, const AVOption *o, const char *val, uint8_t **d
     av_freep(dst);
     if (!val)
         return 0;
-    *dst = av_strdup(val);
+    *dst = av_strdup(val);/*复制并设置*/
     return *dst ? 0 : AVERROR(ENOMEM);
 }
 
@@ -556,6 +560,7 @@ static const char *get_bool_name(int val)
     return val ? "true" : "false";
 }
 
+/*字符串转bool类型,设置avoption*/
 static int set_string_bool(void *obj, const AVOption *o, const char *val, int *dst)
 {
     int n;
@@ -566,20 +571,20 @@ static int set_string_bool(void *obj, const AVOption *o, const char *val, int *d
     if (!strcmp(val, "auto")) {
         n = -1;
     } else if (av_match_name(val, "true,y,yes,enable,enabled,on")) {
-        n = 1;
+        n = 1;/*以上为true*/
     } else if (av_match_name(val, "false,n,no,disable,disabled,off")) {
-        n = 0;
+        n = 0;/*以上为false*/
     } else {
         char *end = NULL;
-        n = strtol(val, &end, 10);
+        n = strtol(val, &end, 10);/*转成数字*/
         if (val + strlen(val) != end)
-            goto fail;
+            goto fail;/*非纯数字,格式有误*/
     }
 
     if (n < o->min || n > o->max)
         goto fail;
 
-    *dst = n;
+    *dst = n;/*设置内容*/
     return 0;
 
 fail:
@@ -680,7 +685,7 @@ static int set_string_channel_layout(void *obj, const AVOption *o,
 static int opt_set_elem(void *obj, void *target_obj, const AVOption *o,
                         const char *val, void *dst)
 {
-    const enum AVOptionType type = TYPE_BASE(o->type);
+    const enum AVOptionType type = TYPE_BASE(o->type);/*取基本类型*/
     int ret;
 
     if (!val && (type != AV_OPT_TYPE_STRING &&
@@ -688,7 +693,7 @@ static int opt_set_elem(void *obj, void *target_obj, const AVOption *o,
                  type != AV_OPT_TYPE_IMAGE_SIZE &&
                  type != AV_OPT_TYPE_DURATION && type != AV_OPT_TYPE_COLOR &&
                  type != AV_OPT_TYPE_BOOL))
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*当前仅支持以上基本类型*/
 
     switch (type) {
     case AV_OPT_TYPE_BOOL:
@@ -795,20 +800,20 @@ static int opt_set_array(void *obj, void *target_obj, const AVOption *o,
         }
         *p = 0;
 
-        tmp = av_realloc_array(elems, nb_elems + 1, elem_size);
+        tmp = av_realloc_array(elems, nb_elems + 1, elem_size);/*扩大元素数组*/
         if (!tmp) {
             ret = AVERROR(ENOMEM);
             goto fail;
         }
         elems = tmp;
 
-        tmp = opt_array_pelem(o, elems, nb_elems);
+        tmp = opt_array_pelem(o, elems, nb_elems);/*取当前待设置元素指针*/
         memset(tmp, 0, elem_size);
 
-        ret = opt_set_elem(obj, target_obj, o, str, tmp);
+        ret = opt_set_elem(obj, target_obj, o, str, tmp/*指明目标*/);/*单个设置*/
         if (ret < 0)
             goto fail;
-        nb_elems++;
+        nb_elems++;/*元素数增加*/
     }
     av_freep(&str);
 
@@ -838,12 +843,12 @@ int av_opt_set(void *obj, const char *name, const char *val, int search_flags)
     const AVOption *o;
     int ret;
 
-    ret = opt_set_init(obj, name, search_flags, 0, &target_obj, &o, &dst);
+    ret = opt_set_init(obj, name, search_flags, 0/*不匹配类型*/, &target_obj, &o, &dst);
     if (ret < 0)
         return ret;
 
     return ((o->type & AV_OPT_TYPE_FLAG_ARRAY) ?
-            opt_set_array : opt_set_elem)(obj, target_obj, o, val, dst);
+            opt_set_array/*数组类元素设置*/ : opt_set_elem/*单元素类设置*/)(obj, target_obj, o, val, dst);
 }
 
 #define OPT_EVAL_NUMBER(name, opttype, vartype)                         \
@@ -1047,6 +1052,7 @@ static void format_duration(char *buf, size_t size, int64_t d)
         *(--e) = 0;
 }
 
+/*按格式读取dst指明的数据*/
 static int opt_get_elem(const AVOption *o, uint8_t **pbuf, size_t buf_len,
                         const void *dst, int search_flags)
 {
@@ -1212,6 +1218,7 @@ fail:
     return 0;
 }
 
+/*读取OBJ中的名称为$NAME的配置*/
 int av_opt_get(void *obj, const char *name, int search_flags, uint8_t **out_val)
 {
     void *dst, *target_obj;
@@ -1225,7 +1232,7 @@ int av_opt_get(void *obj, const char *name, int search_flags, uint8_t **out_val)
     if (o->flags & AV_OPT_FLAG_DEPRECATED)
         av_log(obj, AV_LOG_WARNING, "The \"%s\" option is deprecated: %s\n", name, o->help);
 
-    dst = (uint8_t *)target_obj + o->offset;
+    dst = (uint8_t *)target_obj + o->offset;/*待读取位置*/
 
     if (o->type & AV_OPT_TYPE_FLAG_ARRAY) {
         ret = opt_get_array(o, dst, out_val);
@@ -1245,7 +1252,7 @@ int av_opt_get(void *obj, const char *name, int search_flags, uint8_t **out_val)
     if (ret < 0)
         return ret;
     if (out != buf) {
-        *out_val = out;
+        *out_val = out;/*填充内容*/
         return 0;
     }
 
@@ -1683,17 +1690,17 @@ void av_opt_set_defaults(void *s)
 void av_opt_set_defaults2(void *s, int mask, int flags)
 {
     const AVOption *opt = NULL;
-    while ((opt = av_opt_next(s, opt))) {
-        void *dst = ((uint8_t*)s) + opt->offset;
+    while ((opt = av_opt_next(s, opt))) {/*遍历此对象的所有AVOption*/
+        void *dst = ((uint8_t*)s) + opt->offset;/*此OPT对应的待填充dst*/
 
         if ((opt->flags & mask) != flags)
             continue;
 
         if (opt->flags & AV_OPT_FLAG_READONLY)
-            continue;
+            continue;/*跳过只读者*/
 
         if (opt->type & AV_OPT_TYPE_FLAG_ARRAY) {
-            const AVOptionArrayDef *arr = opt->default_val.arr;
+            const AVOptionArrayDef *arr = opt->default_val.arr;/*取默认值*/
             const char              sep = opt_array_sep(opt);
 
             av_assert0(sep && sep != '\\' &&
@@ -1702,7 +1709,7 @@ void av_opt_set_defaults2(void *s, int mask, int flags)
                        (sep < '0' || sep > '9'));
 
             if (arr && arr->def)
-                opt_set_array(s, s, opt, arr->def, dst);
+                opt_set_array(s, s, opt, arr->def, dst);/*填写默认值*/
 
             continue;
         }
@@ -1720,7 +1727,7 @@ void av_opt_set_defaults2(void *s, int mask, int flags)
             case AV_OPT_TYPE_DURATION:
             case AV_OPT_TYPE_PIXEL_FMT:
             case AV_OPT_TYPE_SAMPLE_FMT:
-                write_number(s, opt, dst, 1, 1, opt->default_val.i64);
+                write_number(s, opt, dst, 1, 1, opt->default_val.i64);/*填写默认值*/
                 break;
             case AV_OPT_TYPE_DOUBLE:
             case AV_OPT_TYPE_FLOAT: {
@@ -1959,7 +1966,7 @@ void av_opt_free(void *obj)
     }
 }
 
-int av_opt_set_dict2(void *obj, AVDictionary **options, int search_flags)
+int av_opt_set_dict2(void *obj, AVDictionary **options/*入参,要设置的options,出参,设置过程中失败的options*/, int search_flags)
 {
     const AVDictionaryEntry *t = NULL;
     AVDictionary    *tmp = NULL;
@@ -1968,35 +1975,39 @@ int av_opt_set_dict2(void *obj, AVDictionary **options, int search_flags)
     if (!options)
         return 0;
 
-    /*遍历options,将其中所有元素???*/
+    /*遍历options,针对每个t->key,t->value设置obj中的每个opt*/
     while ((t = av_dict_iterate(*options, t))) {
+    	/*利用kv,设置obj*/
         ret = av_opt_set(obj, t->key, t->value, search_flags);
         if (ret == AVERROR_OPTION_NOT_FOUND)
+        	/*此OBJ中无此option,记录设置时失败的option*/
             ret = av_dict_set(&tmp, t->key, t->value, AV_DICT_MULTIKEY);
         if (ret < 0) {
+        	/*这种情况,直接报错,且失败*/
             av_log(obj, AV_LOG_ERROR, "Error setting option %s to value %s.\n", t->key, t->value);
             av_dict_free(&tmp);
             return ret;
         }
     }
     av_dict_free(options);
-    *options = tmp;
-    return 0;
+    *options = tmp;/*更正未设置成功的OPT*/
+    return 0;/*仍返回成功*/
 }
 
 int av_opt_set_dict(void *obj, AVDictionary **options)
 {
+	/*设置OPTIONS字典指明的KV到obj中*/
     return av_opt_set_dict2(obj, options, 0);
 }
 
 const AVOption *av_opt_find(void *obj, const char *name, const char *unit,
                             int opt_flags, int search_flags)
 {
-    return av_opt_find2(obj, name, unit, opt_flags, search_flags, NULL);
+    return av_opt_find2(obj, name, unit, opt_flags, search_flags, NULL/*不关心target_obj*/);
 }
 
 const AVOption *av_opt_find2(void *obj, const char *name, const char *unit,
-                             int opt_flags, int search_flags, void **target_obj)
+                             int opt_flags, int search_flags/*查询方式*/, void **target_obj)
 {
     const AVClass  *c;
     const AVOption *o = NULL;
@@ -2004,16 +2015,18 @@ const AVOption *av_opt_find2(void *obj, const char *name, const char *unit,
     if(!obj)
         return NULL;
 
-    c= *(AVClass**)obj;
+    c= *(AVClass**)obj;/*这要求obj结构的首个元素必须是AVClass类型的成员*/
 
     if (!c)
         return NULL;
 
     if (search_flags & AV_OPT_SEARCH_CHILDREN) {
         if (search_flags & AV_OPT_SEARCH_FAKE_OBJ) {
+        	/*针对FAKE OBJ,通过child_class_iterate回调迭代AVCLASS*/
             void *iter = NULL;
             const AVClass *child;
             while (child = av_opt_child_class_iterate(c, &iter))
+            	/*在此avclass中查找名称为$NAME的配置项(递归查找)*/
                 if (o = av_opt_find2(&child, name, unit, opt_flags, search_flags, NULL))
                     return o;
         } else {
@@ -2024,17 +2037,19 @@ const AVOption *av_opt_find2(void *obj, const char *name, const char *unit,
         }
     }
 
+    /*遍历obj(AVClass**类型)的option,首次获取时传入NULL,之后每次传入上一次获取到的*/
     while (o = av_opt_next(obj, o)) {
-        if (!strcmp(o->name, name) && (o->flags & opt_flags) == opt_flags &&
+        if (!strcmp(o->name, name)/*名称匹配*/ && (o->flags & opt_flags) == opt_flags/*标记匹配*/ &&
             ((!unit && o->type != AV_OPT_TYPE_CONST) ||
              (unit  && o->type == AV_OPT_TYPE_CONST && o->unit && !strcmp(o->unit, unit)))) {
             if (target_obj) {
+            	/*参数要求设置target_obj*/
                 if (!(search_flags & AV_OPT_SEARCH_FAKE_OBJ))
-                    *target_obj = obj;
+                    *target_obj = obj;/*未明确指明为fake_obj,返回此obj*/
                 else
-                    *target_obj = NULL;
+                    *target_obj = NULL;/*针对FAKE的,不设置target_obj*/
             }
-            return o;
+            return o;/*返回name对应的OPTION*/
         }
     }
     return NULL;
@@ -2042,6 +2057,7 @@ const AVOption *av_opt_find2(void *obj, const char *name, const char *unit,
 
 void *av_opt_child_next(void *obj, void *prev)
 {
+	/*非FAKE查询时,通过child_next进行遍历*/
     const AVClass *c = *(AVClass **)obj;
     if (c->child_next)
         return c->child_next(obj, prev);
@@ -2050,9 +2066,10 @@ void *av_opt_child_next(void *obj, void *prev)
 
 const AVClass *av_opt_child_class_iterate(const AVClass *parent, void **iter)
 {
+	/*FAKE查询时,通过child_class_iterate进行遍历*/
     if (parent->child_class_iterate)
         return parent->child_class_iterate(iter);
-    return NULL;
+    return NULL;/*如未设此回调,则返回NULL*/
 }
 
 #if FF_API_OPT_PTR
@@ -2067,6 +2084,7 @@ void *av_opt_ptr(const AVClass *class, void *obj, const char *name)
 }
 #endif
 
+/*基本类型设置*/
 static int opt_copy_elem(void *logctx, enum AVOptionType type,
                          void *dst, const void *src)
 {
@@ -2115,6 +2133,7 @@ static int opt_copy_elem(void *logctx, enum AVOptionType type,
     return 0;
 }
 
+/*数组类型设置*/
 static int opt_copy_array(void *logctx, const AVOption *o,
                           void **pdst, const void * const *psrc)
 {
@@ -2158,10 +2177,11 @@ int av_opt_copy(void *dst, const void *src)
     if (!src)
         return AVERROR(EINVAL);
 
-    c = *(AVClass **)src;
+    c = *(AVClass **)src;/*源对项必须满足avclass类型要求*/
     if (!c || c != *(AVClass **)dst)
         return AVERROR(EINVAL);
 
+    /*遍历src的配置项,复制设置到dst*/
     while ((o = av_opt_next(src, o))) {
         void *field_dst = (uint8_t *)dst + o->offset;
         void *field_src = (uint8_t *)src + o->offset;

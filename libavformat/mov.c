@@ -11247,7 +11247,7 @@ static int mov_read_seek(AVFormatContext *s, int stream_index, int64_t sample_ti
     int i;
 
     if (stream_index >= s->nb_streams)
-        return AVERROR_INVALIDDATA;
+        return AVERROR_INVALIDDATA;/*不能超过流总数*/
 
     st = s->streams[stream_index];
     sti = ffstream(st);

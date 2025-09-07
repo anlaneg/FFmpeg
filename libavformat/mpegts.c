@@ -102,7 +102,7 @@ struct MpegTSFilter {
     int last_cc; /* last cc code (-1 if first packet) */
     int64_t last_pcr;
     int discard;
-    enum MpegTSFilterType type;
+    enum MpegTSFilterType type;/*PID类型*/
     union {
         MpegTSPESFilter pes_filter;
         MpegTSSectionFilter section_filter;
@@ -488,6 +488,7 @@ static void write_section_data(MpegTSContext *ts, MpegTSFilter *tss1,
     }
 }
 
+/*创建并初始化mpegtsfilter对象*/
 static MpegTSFilter *mpegts_open_filter(MpegTSContext *ts, unsigned int pid,
                                         enum MpegTSFilterType type)
 {
@@ -500,7 +501,7 @@ static MpegTSFilter *mpegts_open_filter(MpegTSContext *ts, unsigned int pid,
     filter = av_mallocz(sizeof(MpegTSFilter));
     if (!filter)
         return NULL;
-    ts->pids[pid] = filter;
+    ts->pids[pid] = filter;/*记录filter,可以通过此PID找到此filter*/
 
     filter->type    = type;
     filter->pid     = pid;
@@ -524,12 +525,14 @@ static MpegTSFilter *mpegts_open_section_filter(MpegTSContext *ts,
     if (!section_buf)
         return NULL;
 
+    /*创建filter对象*/
     if (!(filter = mpegts_open_filter(ts, pid, MPEGTS_SECTION))) {
         av_free(section_buf);
         return NULL;
     }
+    /*初始化section_filter*/
     sec = &filter->u.section_filter;
-    sec->section_cb  = section_cb;
+    sec->section_cb  = section_cb;/*设置回调*/
     sec->opaque      = opaque;
     sec->section_buf = section_buf;
     sec->check_crc   = check_crc;
@@ -580,7 +583,14 @@ static void mpegts_close_filter(MpegTSContext *ts, MpegTSFilter *filter)
     ts->pids[pid] = NULL;
 }
 
-static int analyze(const uint8_t *buf, int size, int packet_size,
+/*
+ * 由于码流中可能会偶尔出现与同步字节值相同的字节，
+ * 所以解码器在检测到一个字节为 0x47 时，不会直接认定它就是同步字节，
+ * 而是会进一步检测这个字节前后间隔 188 字节的位置是否也为 0x47。
+ * 如果连续多个满足固定间隔 188 字节且值都为 0x47 的条件，才会确定当前字节为同步字节；
+ * 否则，就认为该字节只是码流中偶然出现的，并非真正的同步字节。通常，接收端收到 5 个 TS 包之后开始同步。
+ * */
+static int analyze(const uint8_t *buf, int size/*可读取的内容长度*/, int packet_size,
                    int probe)
 {
     int stat[TS_MAX_PACKET_SIZE];
@@ -588,12 +598,15 @@ static int analyze(const uint8_t *buf, int size, int packet_size,
     int i;
     int best_score = 0;
 
-    memset(stat, 0, packet_size * sizeof(*stat));
+    memset(stat, 0, packet_size * sizeof(*stat));/*将stat中前packet_size个int赋成零*/
 
+    /*固定 188 字节，由 4 字节包头 和 184 字节负载 组成。
+包头包含：同步字节（0x47）、错误指示、PID（Packet ID，标识包类型）、连续计数器等。*/
     for (i = 0; i < size - 3; i++) {
         if (buf[i] == SYNC_BYTE) {
-            int pid = AV_RB16(buf+1) & 0x1FFF;
-            int asc = buf[i + 3] & 0x30;
+        	/*遇到sync标记(占1个字节)'G'*/
+            int pid = AV_RB16(buf+1) & 0x1FFF;/*数据包类型,共占用13bit*/
+            int asc = buf[i + 3] & 0x30;/*adaptatin_field_control字段*/
             if (!probe || pid == 0x1FFF || asc) {
                 int x = i % packet_size;
                 stat[x]++;
@@ -617,18 +630,18 @@ static int get_packet_size(AVFormatContext* s)
 
     /*init buffer to store stream for probing */
     uint8_t buf[PROBE_PACKET_MAX_BUF] = {0};
-    int buf_size = 0;
+    int buf_size = 0;/*记录已知读取的长度*/
     int max_iterations = 16;
 
     while (buf_size < PROBE_PACKET_MAX_BUF && max_iterations--) {
-        ret = avio_read_partial(s->pb, buf + buf_size, PROBE_PACKET_MAX_BUF - buf_size);
+        ret = avio_read_partial(s->pb, buf + buf_size/*本次要填充的位置*/, PROBE_PACKET_MAX_BUF - buf_size/*最多可填充的长度*/);
         if (ret < 0)
             return AVERROR_INVALIDDATA;
-        buf_size += ret;
+        buf_size += ret;/*增加本次读取的长度*/
 
-        score      = analyze(buf, buf_size, TS_PACKET_SIZE,      0);
-        dvhs_score = analyze(buf, buf_size, TS_DVHS_PACKET_SIZE, 0);
-        fec_score  = analyze(buf, buf_size, TS_FEC_PACKET_SIZE,  0);
+        score      = analyze(buf, buf_size, TS_PACKET_SIZE,      0);/*尝试用TS_PACKET_SIZE大小解析*/
+        dvhs_score = analyze(buf, buf_size, TS_DVHS_PACKET_SIZE, 0);/*尝试用TS_DVHS_PACKET_SIZE大小解析*/
+        fec_score  = analyze(buf, buf_size, TS_FEC_PACKET_SIZE,  0);/*尝试用TS_FEC_PACKET_SIZE大小解析*/
         av_log(s, AV_LOG_TRACE, "Probe: %d, score: %d, dvhs_score: %d, fec_score: %d \n",
             buf_size, score, dvhs_score, fec_score);
 
@@ -637,6 +650,7 @@ static int get_packet_size(AVFormatContext* s)
         if (buf_size < PROBE_PACKET_MAX_BUF)
             margin += PROBE_PACKET_MARGIN; /*if buffer not filled */
 
+        /*确定包长度*/
         if (score > margin)
             return TS_PACKET_SIZE;
         else if (dvhs_score > margin)
@@ -2785,15 +2799,15 @@ static int parse_pcr(int64_t *ppcr_high, int *ppcr_low,
                      const uint8_t *packet);
 
 /* handle one TS packet */
-static int handle_packet(MpegTSContext *ts, const uint8_t *packet, int64_t pos)
+static int handle_packet(MpegTSContext *ts, const uint8_t *packet/*要处理的报文*/, int64_t pos/*当前文件读写位置*/)
 {
     MpegTSFilter *tss;
     int len, pid, cc, expected_cc, cc_ok, afc, is_start, is_discontinuity,
         has_adaptation, has_payload;
     const uint8_t *p, *p_end;
 
-    pid = AV_RB16(packet + 1) & 0x1fff;
-    is_start = packet[1] & 0x40;
+    pid = AV_RB16(packet + 1) & 0x1fff;/*取packet ID(占用13位)*/
+    is_start = packet[1] & 0x40;/*这里采用0X40,即字节的第7位(从低位数),此标记负载中是否包含新的访问单元（如视频帧、音频帧）的起始，1 表示是。*/
     tss = ts->pids[pid];
     if (ts->auto_guess && !tss && is_start) {
         add_pes_stream(ts, pid, -1);
@@ -2807,17 +2821,18 @@ static int handle_packet(MpegTSContext *ts, const uint8_t *packet, int64_t pos)
         return 0;
     ts->current_pid = pid;
 
-    afc = (packet[3] >> 4) & 3;
+    afc = (packet[3] >> 4) & 3;/*AFC（Adaptation Field Control，自适应控制字段）*/
     if (afc == 0) /* reserved value */
-        return 0;
-    has_adaptation   = afc & 2;
-    has_payload      = afc & 1;
+        return 0;/*保留（标准未定义，实际中不会出现）。*/
+    has_adaptation   = afc & 2;/*仅有自适应域：包头后跟随自适应域，无有效负载（用于填充或传输控制信息）。*/
+    has_payload      = afc & 1;/*仅有负载：包头后直接跟随有效负载（如 PES 包或 PSI 表），无自适应域。*/
+    /*如果包含自适应域且自适应域长度不为0(packet[4]),discontinuity标记位于packet[5]的最高位bit上*/
     is_discontinuity = has_adaptation &&
                        packet[4] != 0 && /* with length > 0 */
                        (packet[5] & 0x80); /* and discontinuity indicated */
 
     /* continuity check (currently not used) */
-    cc = (packet[3] & 0xf);
+    cc = (packet[3] & 0xf);/*取连续性计数*/
     expected_cc = has_payload ? (tss->last_cc + 1) & 0x0f : tss->last_cc;
     cc_ok = pid == NULL_PID ||
             is_discontinuity ||
@@ -2835,6 +2850,7 @@ static int handle_packet(MpegTSContext *ts, const uint8_t *packet, int64_t pos)
         }
     }
 
+    /*标记该包是否存在传输错误（如 CRC 校验失败），1 表示有错误。*/
     if (packet[1] & 0x80) {
         av_log(ts->stream, AV_LOG_DEBUG, "Packet had TEI flag set; marking as corrupt\n");
         if (tss->type == MPEGTS_PES) {
@@ -2843,7 +2859,7 @@ static int handle_packet(MpegTSContext *ts, const uint8_t *packet, int64_t pos)
         }
     }
 
-    p = packet + 4;
+    p = packet + 4;/*跳过TS包头*/
     if (has_adaptation) {
         int64_t pcr_h;
         int pcr_l;
@@ -2974,6 +2990,7 @@ static int read_packet(AVFormatContext *s, uint8_t *buf, int raw_packet_size,
         len = ffio_read_indirect(pb, buf, TS_PACKET_SIZE, data);
         if (len != TS_PACKET_SIZE)
             return len < 0 ? len : AVERROR_EOF;
+        /*读取到一个完整的报文长度,检查其同步字节是否为SYNC_BYTE*/
         /* check packet sync byte */
         if ((*data)[0] != SYNC_BYTE) {
             /* find a new packet start */
@@ -2983,6 +3000,7 @@ static int read_packet(AVFormatContext *s, uint8_t *buf, int raw_packet_size,
             else
                 continue;
         } else {
+        	/*同步字节匹配,跳出*/
             break;
         }
     }
@@ -3015,7 +3033,9 @@ static int handle_packets(MpegTSContext *ts, int64_t nb_packets)
         /* seek detected, flush pes buffer */
         for (i = 0; i < NB_PID_MAX; i++) {
             if (ts->pids[i]) {
+            	/*此pids有值*/
                 if (ts->pids[i]->type == MPEGTS_PES) {
+                	//PES层
                     PESContext *pes = ts->pids[i]->u.pes_filter.opaque;
                     av_buffer_unref(&pes->buffer);
                     pes->data_index = 0;
@@ -3031,20 +3051,23 @@ static int handle_packets(MpegTSContext *ts, int64_t nb_packets)
 
     ts->stop_parse = 0;
     packet_num = 0;
-    memset(packet + TS_PACKET_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    memset(packet + TS_PACKET_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);/*清空*/
     for (;;) {
-        packet_num++;
+        packet_num++;/*报文增加*/
         if (nb_packets != 0 && packet_num >= nb_packets ||
             ts->stop_parse > 1) {
+        	/*指定了报文 ,且报文已达标,或者指明要停止parse*/
             ret = AVERROR(EAGAIN);
             break;
         }
         if (ts->stop_parse > 0)
-            break;
+            break;/*STOP_PARSE等于1,跳出*/
 
-        ret = read_packet(s, packet, ts->raw_packet_size, &data);
+        /*读取一个PACKET*/
+        ret = read_packet(s, packet/*用于缓存报文*/, ts->raw_packet_size/*要读取的长度*/, &data/*出参,读取到的内容指针*/);
         if (ret != 0)
             break;
+        /*处理此报文*/
         ret = handle_packet(ts, data, avio_tell(s->pb));
         finished_reading_packet(s, ts->raw_packet_size);
         if (ret != 0)
@@ -3060,7 +3083,7 @@ static int mpegts_probe(const AVProbeData *p)
     int maxscore = 0;
     int sumscore = 0;
     int i;
-    int check_count = size / TS_FEC_PACKET_SIZE;
+    int check_count = size / TS_FEC_PACKET_SIZE;/*buffer中的内容最多可以有checK_count个检查块*/
 #define CHECK_COUNT 10
 #define CHECK_BLOCK 100
 
@@ -3132,6 +3155,7 @@ static void seek_back(AVFormatContext *s, AVIOContext *pb, int64_t pos) {
         av_log(s, (pb->seekable & AVIO_SEEKABLE_NORMAL) ? AV_LOG_ERROR : AV_LOG_INFO, "Unable to seek back to the start\n");
 }
 
+/*读取header*/
 static int mpegts_read_header(AVFormatContext *s)
 {
     MpegTSContext *ts = s->priv_data;
@@ -3139,12 +3163,14 @@ static int mpegts_read_header(AVFormatContext *s)
     int64_t pos, probesize = s->probesize;
     int64_t seekback = FFMAX(s->probesize, (int64_t)ts->resync_size + PROBE_PACKET_MAX_BUF);
 
+    /*确保可seekback*/
     if (ffio_ensure_seekback(pb, seekback) < 0)
         av_log(s, AV_LOG_WARNING, "Failed to allocate buffers for seekback\n");
 
-    pos = avio_tell(pb);
-    ts->raw_packet_size = get_packet_size(s);
+    pos = avio_tell(pb);/*记录当前位置以便seekback*/
+    ts->raw_packet_size = get_packet_size(s);/*返回每个PACKET长度*/
     if (ts->raw_packet_size <= 0) {
+    	/*无效的ts报文*/
         av_log(s, AV_LOG_WARNING, "Could not detect TS packet size, defaulting to non-FEC/DVHS\n");
         ts->raw_packet_size = TS_PACKET_SIZE;
     }
@@ -3155,7 +3181,7 @@ static int mpegts_read_header(AVFormatContext *s)
         /* normal demux */
 
         /* first do a scan to get all the services */
-        seek_back(s, pb, pos);
+        seek_back(s, pb, pos);/*回到原保存位置*/
 
         mpegts_open_section_filter(ts, SDT_PID, sdt_cb, ts, 1);
         mpegts_open_section_filter(ts, PAT_PID, pat_cb, ts, 1);
@@ -3227,7 +3253,7 @@ static int mpegts_read_header(AVFormatContext *s)
                 st->start_time / 1000000.0, pcrs[0] / 27e6, ts->pcr_incr);
     }
 
-    seek_back(s, pb, pos);
+    seek_back(s, pb, pos);/*回退到原来的位置*/
     return 0;
 }
 
@@ -3459,7 +3485,7 @@ void avpriv_mpegts_parse_close(MpegTSContext *ts)
     av_free(ts);
 }
 
-const FFInputFormat ff_mpegts_demuxer = {
+const FFInputFormat ff_mpegts_demuxer = {/*MPETGTS对应的解码对象*/
     .p.name         = "mpegts",
     .p.long_name    = NULL_IF_CONFIG_SMALL("MPEG-TS (MPEG-2 Transport Stream)"),
     .p.flags        = AVFMT_SHOW_IDS | AVFMT_TS_DISCONT,

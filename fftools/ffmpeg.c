@@ -102,7 +102,9 @@ atomic_uint nb_output_dumped = 0;
 static BenchmarkTimeStamps current_time;
 AVIOContext *progress_avio = NULL;
 
+/*输入文件*/
 InputFile   **input_files   = NULL;
+/*输入文件数目*/
 int        nb_input_files   = 0;
 
 OutputFile   **output_files   = NULL;
@@ -146,7 +148,7 @@ sigterm_handler(int sig)
 {
     int ret;
     received_sigterm = sig;
-    received_nb_signals++;
+    received_nb_signals++;/*收到信号数增加*/
     term_exit_sigsafe();
     if(received_nb_signals > 3) {
         ret = write(2/*STDERR_FILENO*/, "Received > 3 system signals, hard exiting\n",
@@ -960,6 +962,7 @@ static int64_t getmaxrss(void)
 #endif
 }
 
+//ffmpeg程序入口
 int main(int argc, char **argv)
 {
     Scheduler *sch = NULL;
@@ -993,6 +996,7 @@ int main(int argc, char **argv)
         goto finish;
 
     if (nb_output_files <= 0 && nb_input_files == 0) {
+    	/*未指明输入输出文件*/
         show_usage();
         av_log(NULL, AV_LOG_WARNING, "Use -h to get full help or, even better, run 'man %s'\n", program_name);
         ret = 1;
@@ -1000,6 +1004,7 @@ int main(int argc, char **argv)
     }
 
     if (nb_output_files <= 0) {
+    	/*未指明输出文件*/
         av_log(NULL, AV_LOG_FATAL, "At least one output file must be specified\n");
         ret = 1;
         goto finish;

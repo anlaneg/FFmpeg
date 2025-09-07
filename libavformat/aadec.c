@@ -341,8 +341,9 @@ static int aa_probe(const AVProbeData *p)
     uint8_t *buf = p->buf;
 
     // first 4 bytes are file size, next 4 bytes are the magic
+    /*前4个字节为文件大小,接下来的4个字节是magic,这里保检查后4个字节*/
     if (AV_RB32(buf+4) != AA_MAGIC)
-        return 0;
+        return 0;/*不命中*/
 
     return AVPROBE_SCORE_MAX / 2;
 }

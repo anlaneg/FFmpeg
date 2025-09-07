@@ -593,13 +593,13 @@ static void dump_disposition(int disposition, int log_level)
 }
 
 /* "user interface" functions */
-static void dump_stream_format(const AVFormatContext *ic, int i,
-                               int group_index, int index, int is_output,
+static void dump_stream_format(const AVFormatContext *ic, int i/*STREAM索引*/,
+                               int group_index, int index/*文件索引*/, int is_output,
                                int log_level)
 {
     char buf[256];
     int flags = (is_output ? ic->oformat->flags : ic->iformat->flags);
-    const AVStream *st = ic->streams[i];
+    const AVStream *st = ic->streams[i];/*取得stream*/
     const FFStream *const sti = cffstream(st);
     const AVDictionaryEntry *lang = av_dict_get(st->metadata, "language", NULL, 0);
     const char *separator = ic->dump_separator;
@@ -637,7 +637,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     avcodec_string(buf, sizeof(buf), avctx, is_output);
     avcodec_free_context(&avctx);
 
-    av_log(NULL, log_level, "%s  Stream #%d", group_indent, index);
+    av_log(NULL, log_level, "%s  Stream #%d", group_indent, index);/*显示stream编号*/
     av_log(NULL, log_level, ":%d", i);
 
     /* the pid is an important information, so we display it */
@@ -847,8 +847,8 @@ static void dump_stream_group(const AVFormatContext *ic, uint8_t *printed,
     }
 }
 
-void av_dump_format(AVFormatContext *ic, int index,
-                    const char *url, int is_output)
+void av_dump_format(AVFormatContext *ic, int index/*文件索引号*/,
+                    const char *url/*文件名称*/, int is_output/*是否输出格式*/)
 {
     int i;
     uint8_t *printed = ic->nb_streams ? av_mallocz(ic->nb_streams) : NULL;
@@ -856,27 +856,29 @@ void av_dump_format(AVFormatContext *ic, int index,
         return;
 
     av_log(NULL, AV_LOG_INFO, "%s #%d, %s, %s '%s':\n",
-           is_output ? "Output" : "Input",
-           index,
-           is_output ? ic->oformat->name : ic->iformat->name,
-           is_output ? "to" : "from", url);
+           is_output ? "Output" : "Input",/*显示文件方向*/
+           index,/*显示文件索引号*/
+           is_output ? ic->oformat->name : ic->iformat->name,/*格式名称*/
+           is_output ? "to" : "from"/*显示方向*/, url/*显示文件名称*/);
     dump_metadata(NULL, ic->metadata, "  ", AV_LOG_INFO);
 
     if (!is_output) {
+    	/*针对输入文件*/
         av_log(NULL, AV_LOG_INFO, "  Duration: ");
+        /*显示输入文件时长*/
         if (ic->duration != AV_NOPTS_VALUE) {
             int64_t hours, mins, secs, us;
             int64_t duration = ic->duration + (ic->duration <= INT64_MAX - 5000 ? 5000 : 0);
-            secs  = duration / AV_TIME_BASE;
-            us    = duration % AV_TIME_BASE;
-            mins  = secs / 60;
+            secs  = duration / AV_TIME_BASE;/*换算成整的秒数*/
+            us    = duration % AV_TIME_BASE;/*换算US*/
+            mins  = secs / 60;/*整的分钟数*/
             secs %= 60;
             hours = mins / 60;
             mins %= 60;
             av_log(NULL, AV_LOG_INFO, "%02"PRId64":%02"PRId64":%02"PRId64".%02"PRId64"", hours, mins, secs,
-                   (100 * us) / AV_TIME_BASE);
+                   (100 * us) / AV_TIME_BASE);/*显示持续时间*/
         } else {
-            av_log(NULL, AV_LOG_INFO, "N/A");
+            av_log(NULL, AV_LOG_INFO, "N/A");/*未知*/
         }
         if (ic->start_time != AV_NOPTS_VALUE) {
             int secs, us;
@@ -886,11 +888,11 @@ void av_dump_format(AVFormatContext *ic, int index,
             av_log(NULL, AV_LOG_INFO, "%s%d.%06d",
                    ic->start_time >= 0 ? "" : "-",
                    secs,
-                   (int) av_rescale(us, 1000000, AV_TIME_BASE));
+                   (int) av_rescale(us, 1000000, AV_TIME_BASE));/*显示首帧起始时间*/
         }
         av_log(NULL, AV_LOG_INFO, ", bitrate: ");
         if (ic->bit_rate)
-            av_log(NULL, AV_LOG_INFO, "%"PRId64" kb/s", ic->bit_rate / 1000);
+            av_log(NULL, AV_LOG_INFO, "%"PRId64" kb/s", ic->bit_rate / 1000);/*显示帧率*/
         else
             av_log(NULL, AV_LOG_INFO, "N/A");
         av_log(NULL, AV_LOG_INFO, "\n");
@@ -917,7 +919,7 @@ void av_dump_format(AVFormatContext *ic, int index,
                                                         "name", NULL, 0);
             av_log(NULL, AV_LOG_INFO, "  Program %d %s\n", program->id,
                    name ? name->value : "");
-            dump_metadata(NULL, program->metadata, "    ", AV_LOG_INFO);
+            dump_metadata(NULL, program->metadata, "    ", AV_LOG_INFO);/*显示metadata*/
             for (k = 0; k < program->nb_stream_indexes; k++) {
                 dump_stream_format(ic, program->stream_index[k],
                                    -1, index, is_output, AV_LOG_INFO);
@@ -929,12 +931,14 @@ void av_dump_format(AVFormatContext *ic, int index,
             av_log(NULL, AV_LOG_INFO, "  No Program\n");
     }
 
+    /**/
     for (i = 0; i < ic->nb_stream_groups; i++)
          dump_stream_group(ic, printed, i, index, is_output);
 
+    /*显示STREAM格式*/
     for (i = 0; i < ic->nb_streams; i++)
         if (!printed[i])
-            dump_stream_format(ic, i, -1, index, is_output, AV_LOG_INFO);
+            dump_stream_format(ic, i/*stream索引*/, -1, index, is_output, AV_LOG_INFO);
 
     av_free(printed);
 }

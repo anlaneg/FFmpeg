@@ -450,6 +450,7 @@ struct AVCodecTag;
  */
 typedef struct AVProbeData {
     const char *filename;/*文件名称*/
+    /*PROBE时读取数据填充到此buf中*/
     unsigned char *buf; /**< Buffer must have AVPROBE_PADDING_SIZE of extra allocated bytes filled with zero. */
     int buf_size;       /**< Size of buf except extra allocated bytes */
     const char *mime_type; /**< mime_type, when known. */
@@ -465,7 +466,7 @@ typedef struct AVProbeData {
 #define AVPROBE_PADDING_SIZE 32             ///< extra allocated bytes at the end of the probe buffer
 
 /// Demuxer will use avio_open, no opened file should be provided by the caller.
-#define AVFMT_NOFILE        0x0001
+#define AVFMT_NOFILE        0x0001/*不需要提供文件*/
 #define AVFMT_NEEDNUMBER    0x0002 /**< Needs '%d' in filename. */
 /**
  * The muxer/demuxer is experimental and should be used with caution.
@@ -503,7 +504,7 @@ typedef struct AVProbeData {
  * @{
  */
 typedef struct AVOutputFormat {
-    const char *name;
+    const char *name;/*格式名称*/
     /**
      * Descriptive name for the format, meant to be more human-readable
      * than name. You should use the NULL_IF_CONFIG_SMALL() macro
@@ -546,14 +547,14 @@ typedef struct AVInputFormat {
      * A comma separated list of short names for the format. New names
      * may be appended with a minor bump.
      */
-    const char *name;
+    const char *name;/*格式名称*/
 
     /**
      * Descriptive name for the format, meant to be more human-readable
      * than name. You should use the NULL_IF_CONFIG_SMALL() macro
      * to define it.
      */
-    const char *long_name;
+    const char *long_name;/*格式长名称*/
 
     /**
      * Can use flags: AVFMT_NOFILE, AVFMT_NEEDNUMBER, AVFMT_SHOW_IDS,
@@ -571,7 +572,7 @@ typedef struct AVInputFormat {
 
     const struct AVCodecTag * const *codec_tag;
 
-    const AVClass *priv_class; ///< AVClass for the private context
+    const AVClass *priv_class;/*私有数据对应的avclass,看avformat_open_input函数处理*/ ///< AVClass for the private context
 
     /**
      * Comma-separated list of mime types.
@@ -1291,7 +1292,7 @@ typedef struct AVFormatContext {
      * - muxing: set by avformat_write_header()
      * - demuxing: set by avformat_open_input()
      */
-    void *priv_data;
+    void *priv_data;/*私有数据(其大小由ffifmt(s->iformat)->priv_data_size指定)*/
 
     /**
      * I/O context.
@@ -1319,7 +1320,7 @@ typedef struct AVFormatContext {
      *
      * Set by avformat_new_stream(), must not be modified by any other code.
      */
-    unsigned int nb_streams;
+    unsigned int nb_streams;/*流总数(streams数组总长度)*/
     /**
      * A list of all streams in the file. New streams are created with
      * avformat_new_stream().
@@ -1331,7 +1332,7 @@ typedef struct AVFormatContext {
      *
      * Freed by libavformat in avformat_free_context().
      */
-    AVStream **streams;
+    AVStream **streams;/*stream数组(例如一条流是视频,一条是音频)*/
 
     /**
      * Number of elements in AVFormatContext.stream_groups.
@@ -1388,7 +1389,7 @@ typedef struct AVFormatContext {
      *
      * Demuxing only, set by libavformat.
      */
-    int64_t start_time;
+    int64_t start_time;/*首帧起始时间*/
 
     /**
      * Duration of the stream, in AV_TIME_BASE fractional
@@ -1398,7 +1399,7 @@ typedef struct AVFormatContext {
      *
      * Demuxing only, set by libavformat.
      */
-    int64_t duration;
+    int64_t duration;/*持续时长*/
 
     /**
      * Total stream bitrate in bit/s, 0 if not
@@ -1460,7 +1461,7 @@ typedef struct AVFormatContext {
     const uint8_t *key;
     int keylen;
 
-    unsigned int nb_programs;
+    unsigned int nb_programs;/*programs数组大小*/
     AVProgram **programs;
 
     /**

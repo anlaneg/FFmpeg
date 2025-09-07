@@ -33,8 +33,8 @@
 #include "error.h"
 #include "macros.h"
 
-/*检查字符串str是否以pfx开头,如果是,则丢掉前缀*/
-int av_strstart(const char *str, const char *pfx, const char **ptr)
+/*检查字符串str是否以pfx开头,如果是,则返回前缀后的内容*/
+int av_strstart(const char *str, const char *pfx, const char **ptr/*出参,指向前缀后的内容*/)
 {
     while (*pfx && *pfx == *str) {
         pfx++;

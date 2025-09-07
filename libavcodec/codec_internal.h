@@ -138,7 +138,7 @@ typedef struct FFCodec {
     /**
      * Is this a decoder?
      */
-    unsigned is_decoder:1;
+    unsigned is_decoder:1;/*是否解码*/
 
     /**
      * This field determines the video color ranges supported by an encoder.
@@ -278,7 +278,7 @@ typedef struct FFCodec {
                                 enum AVCodecConfig config,
                                 unsigned flags,
                                 const void **out_configs,
-                                int *out_num_configs);
+                                int *out_num_configs);/*返回支持的config数组*/
 } FFCodec;
 
 static av_always_inline const FFCodec *ffcodec(const AVCodec *codec)

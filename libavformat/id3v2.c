@@ -1095,7 +1095,7 @@ static void id3v2_read_internal(AVIOContext *pb, AVDictionary **metadata,
     if (max_search_size && max_search_size < ID3v2_HEADER_SIZE)
         return;
 
-    start = avio_tell(pb);
+    start = avio_tell(pb);/*取当前读写头位置*/
     do {
         /* save the current offset in case there's nothing to read/skip */
         off = avio_tell(pb);
@@ -1104,14 +1104,14 @@ static void id3v2_read_internal(AVIOContext *pb, AVDictionary **metadata,
             break;
         }
 
-        ret = ffio_ensure_seekback(pb, ID3v2_HEADER_SIZE);
+        ret = ffio_ensure_seekback(pb, ID3v2_HEADER_SIZE);/*确保当前可seek back指定长度*/
         if (ret >= 0)
-            ret = avio_read(pb, buf, ID3v2_HEADER_SIZE);
+            ret = avio_read(pb, buf, ID3v2_HEADER_SIZE);/*读取指定长度*/
         if (ret != ID3v2_HEADER_SIZE) {
-            avio_seek(pb, off, SEEK_SET);
+            avio_seek(pb, off, SEEK_SET);/*读取长度不足,回退到旧位置*/
             break;
         }
-        found_header = ff_id3v2_match(buf, magic);
+        found_header = ff_id3v2_match(buf, magic);/*检查magic是否匹配*/
         if (found_header) {
             /* parse ID3v2 header */
             len = ((buf[6] & 0x7f) << 21) |
@@ -1121,7 +1121,7 @@ static void id3v2_read_internal(AVIOContext *pb, AVDictionary **metadata,
             id3v2_parse(pb, metadata, s, len, buf[3], buf[5],
                         extra_metap ? &extra_meta : NULL);
         } else {
-            avio_seek(pb, off, SEEK_SET);
+            avio_seek(pb, off, SEEK_SET);/*未发现头,回退到旧位置*/
         }
     } while (found_header);
     ff_metadata_conv(metadata, NULL, ff_id3v2_34_metadata_conv);

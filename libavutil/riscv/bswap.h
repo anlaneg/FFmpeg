@@ -25,6 +25,7 @@
 #include "libavutil/riscv/cpu.h"
 
 #if defined (__GNUC__) || defined (__clang__)
+/*16位字节序交换*/
 #define av_bswap16 __builtin_bswap16
 
 static av_always_inline av_const uint32_t av_bswap32_rv(uint32_t x)

@@ -136,8 +136,9 @@ static const AVClass av_format_context_class = {
     .get_category   = get_category,
 };
 
-static int io_open_default(AVFormatContext *s, AVIOContext **pb,
-                           const char *url, int flags, AVDictionary **options)
+/*负责文件打开*/
+static int io_open_default(AVFormatContext *s, AVIOContext **pb/*出参*/,
+                           const char *url/*文件URL*/, int flags, AVDictionary **options/*配置字典*/)
 {
     int loglevel;
 
@@ -172,7 +173,7 @@ AVFormatContext *avformat_alloc_context(void)
 
     si = &fci->fc;
     s = &si->pub;
-    s->av_class = &av_format_context_class;
+    s->av_class = &av_format_context_class;/*指明AV_CLASS*/
     s->io_open  = io_open_default;/*文件打开*/
     s->io_close2= io_close2_default;
 

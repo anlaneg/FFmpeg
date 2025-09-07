@@ -156,7 +156,7 @@ static int set_codec_from_probe_data(AVFormatContext *s, AVStream *st,
 }
 
 static int init_input(AVFormatContext *s, const char *filename,
-                      AVDictionary **options)
+                      AVDictionary **options/*配置字典*/)
 {
     int ret;
     AVProbeData pd = { filename, NULL, 0 };
@@ -165,6 +165,7 @@ static int init_input(AVFormatContext *s, const char *filename,
     if (s->pb) {
         s->flags |= AVFMT_FLAG_CUSTOM_IO;
         if (!s->iformat)
+        	/*未设置iformat,执行probe*/
             return av_probe_input_buffer2(s->pb, &s->iformat, filename,
                                           s, 0, s->format_probesize);
         else if (s->iformat->flags & AVFMT_NOFILE)
@@ -175,15 +176,16 @@ static int init_input(AVFormatContext *s, const char *filename,
 
     if ((s->iformat && s->iformat->flags & AVFMT_NOFILE) ||
         (!s->iformat/*未指定FOMAT*/ && (s->iformat = av_probe_input_format2(&pd, 0/*指明文件未打开*/, &score))))
-        return score;
+        return score;/*指明了format但FROMAT不容许有file或者没有指定,但我们尝试FORMAT成功(这个函数很难成功)*/
 
-    /*打开文件(io_open_default)*/
+    /*打开文件(io_open_default),申请并初始化s->pb*/
     if ((ret = s->io_open(s, &s->pb, filename, AVIO_FLAG_READ | s->avio_flags, options)) < 0)
         return ret;
 
     if (s->iformat)
+    	/*如果已指明FORMAT,直接返回*/
         return 0;
-    /*检查并设置文件格式*/
+    /*执行probe,并设置文件FROMART,返回>=0表示probe成功,<0表示失败*/
     return av_probe_input_buffer2(s->pb, &s->iformat/*出参,输入文件格式*/, filename,
                                   s, 0, s->format_probesize);
 }
@@ -217,7 +219,7 @@ static int update_stream_avctx(AVFormatContext *s)
 }
 
 int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径*/,
-                        const AVInputFormat *fmt, AVDictionary **options)
+                        const AVInputFormat *fmt/*输入格式*/, AVDictionary **options)
 {
     FormatContextInternal *fci;
     AVFormatContext *s = *ps;
@@ -232,28 +234,30 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
     si = &fci->fc;
     if (!s->av_class) {
         av_log(NULL, AV_LOG_ERROR, "Input context has not been properly allocated by avformat_alloc_context() and is not NULL either\n");
-        return AVERROR(EINVAL);
+        return AVERROR(EINVAL);/*必须设置AV_CLASS*/
     }
     if (fmt)
         s->iformat = fmt;
 
     if (options)
-        av_dict_copy(&tmp, *options, 0);/*复制一份*/
+        av_dict_copy(&tmp, *options, 0);/*复制一份配置选项*/
 
     if (s->pb) // must be before any goto fail
         s->flags |= AVFMT_FLAG_CUSTOM_IO;
 
+    /*利用配置选项,填充s*/
     if ((ret = av_opt_set_dict(s, &tmp)) < 0)
         goto fail;
 
-    if (!(s->url = av_strdup(filename ? filename : ""))) {
+    if (!(s->url = av_strdup(filename ? filename : ""))) {/*设置文件路径*/
         ret = AVERROR(ENOMEM);
         goto fail;
     }
 
+    /*初始化文件*/
     if ((ret = init_input(s, filename, &tmp)) < 0)
-        goto fail;
-    s->probe_score = ret;
+        goto fail;/*初始化失败*/
+    s->probe_score = ret;/*设置得分*/
 
     if (!s->protocol_whitelist && s->pb && s->pb->protocol_whitelist) {
         s->protocol_whitelist = av_strdup(s->pb->protocol_whitelist);
@@ -272,7 +276,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
     }
 
     if (s->format_whitelist && av_match_list(s->iformat->name, s->format_whitelist, ',') <= 0) {
-    	/*指定了白名单,但文件FORMAT不在白名单内*/
+    	/*指定了白名单,但文件IFORMAT不在白名单内,仍失败*/
         av_log(s, AV_LOG_ERROR, "Format not on whitelist \'%s\'\n", s->format_whitelist);
         ret = AVERROR(EINVAL);
         goto fail;
@@ -292,14 +296,15 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
 
     /* Allocate private data. */
     if (ffifmt(s->iformat)->priv_data_size > 0) {
+    	/*要求申请私有数据,按指明的大小进行申请*/
         if (!(s->priv_data = av_mallocz(ffifmt(s->iformat)->priv_data_size))) {
             ret = AVERROR(ENOMEM);
             goto fail;
         }
         if (s->iformat->priv_class) {
-            *(const AVClass **) s->priv_data = s->iformat->priv_class;
-            av_opt_set_defaults(s->priv_data);
-            if ((ret = av_opt_set_dict(s->priv_data, &tmp)) < 0)
+            *(const AVClass **) s->priv_data = s->iformat->priv_class;/*设置私有数据priv_class*/
+            av_opt_set_defaults(s->priv_data);/*设置私有默认值*/
+            if ((ret = av_opt_set_dict(s->priv_data, &tmp)) < 0)/*利用配置填充此私有数据*/
                 goto fail;
         }
     }
@@ -342,7 +347,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename/*文件路径
         goto close;
 
     if (s->pb && !si->data_offset)
-        si->data_offset = avio_tell(s->pb);
+        si->data_offset = avio_tell(s->pb);/*设置offset位置*/
 
     fci->raw_packet_buffer_size = 0;
 

@@ -142,7 +142,7 @@ typedef struct StreamMap {
 } StreamMap;
 
 typedef struct OptionsContext {
-    OptionGroup *g;
+    OptionGroup *g;/*对应的GROUP*/
 
     /* input/output options */
     int64_t start_time;

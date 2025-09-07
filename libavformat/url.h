@@ -29,13 +29,15 @@
 #include "libavutil/dict.h"
 #include "libavutil/log.h"
 
+/*嵌套的协议类型*/
 #define URL_PROTOCOL_FLAG_NESTED_SCHEME 1 /*< The protocol name can be the first part of a nested protocol scheme */
 /*标记需要使用网络*/
 #define URL_PROTOCOL_FLAG_NETWORK       2 /*< The protocol uses network */
 
 typedef struct URLContext {
+	/*设置方式决定了AV_CLASS必须为首个成员,此结构体用于实现urlcontext这个结构体的配置*/
     const AVClass *av_class;    /**< information for av_log(). Set by url_open(). */
-    const struct URLProtocol *prot;/*使用哪种url协议，例如url_protocols*/
+    const struct URLProtocol *prot;/*使用哪种url协议，例如ff_file_protocol,看url_protocols数组*/
     void *priv_data;/*prot保存的私有数据*/
     /*文件路径*/
     char *filename;             /**< specified URL */
@@ -53,13 +55,13 @@ typedef struct URLContext {
 
 typedef struct URLProtocol {
     const char *name;/*协议名称*/
-    int     (*url_open)( URLContext *h, const char *url, int flags);
+    int     (*url_open)( URLContext *h, const char *url, int flags);/*次优被使用的OPEN接口,用于打开*/
     /**
      * This callback is to be used by protocols which open further nested
      * protocols. options are then to be passed to ffurl_open_whitelist()
      * or ffurl_connect() for those nested protocols.
      */
-    int     (*url_open2)(URLContext *h, const char *url, int flags, AVDictionary **options);
+    int     (*url_open2)(URLContext *h, const char *url, int flags, AVDictionary **options);/*优先被使用的OPEN接口*/
     int     (*url_accept)(URLContext *s, URLContext **c);
     int     (*url_handshake)(URLContext *c);
 
@@ -75,27 +77,27 @@ typedef struct URLProtocol {
      * enough data has been read is left to the calling function; see
      * retry_transfer_wrapper in avio.c.
      */
-    int     (*url_read)( URLContext *h, unsigned char *buf, int size);
-    int     (*url_write)(URLContext *h, const unsigned char *buf, int size);
-    int64_t (*url_seek)( URLContext *h, int64_t pos, int whence);
-    int     (*url_close)(URLContext *h);
+    int     (*url_read)( URLContext *h, unsigned char *buf, int size);/*协议读回调*/
+    int     (*url_write)(URLContext *h, const unsigned char *buf/*要写的内容*/, int size);/*协议写回调*/
+    int64_t (*url_seek)( URLContext *h, int64_t pos, int whence);/*获取文件大小及设置读写头位置*/
+    int     (*url_close)(URLContext *h);/*协议关闭*/
     int (*url_read_pause)(void *urlcontext, int pause);
     int64_t (*url_read_seek)(void *urlcontext, int stream_index,
                              int64_t timestamp, int flags);
-    int (*url_get_file_handle)(URLContext *h);
+    int (*url_get_file_handle)(URLContext *h);/*返回对应的fd*/
     int (*url_get_multi_file_handle)(URLContext *h, int **handles,
                                      int *numhandles);
     int (*url_get_short_seek)(URLContext *h);
     int (*url_shutdown)(URLContext *h, int flags);
-    const AVClass *priv_data_class;
-    int priv_data_size;
+    const AVClass *priv_data_class;/*用于指明URLProtocol对应的私有数据如何填充*/
+    int priv_data_size;/*私有数据大小*/
     int flags;
-    int (*url_check)(URLContext *h, int mask);
-    int (*url_open_dir)(URLContext *h);
-    int (*url_read_dir)(URLContext *h, AVIODirEntry **next);
-    int (*url_close_dir)(URLContext *h);
-    int (*url_delete)(URLContext *h);
-    int (*url_move)(URLContext *h_src, URLContext *h_dst);
+    int (*url_check)(URLContext *h, int mask);/*返回对应的读写权限*/
+    int (*url_open_dir)(URLContext *h);/*打开目录*/
+    int (*url_read_dir)(URLContext *h, AVIODirEntry **next);/*读取目录项*/
+    int (*url_close_dir)(URLContext *h);/*关闭目录*/
+    int (*url_delete)(URLContext *h);/*移除回调*/
+    int (*url_move)(URLContext *h_src, URLContext *h_dst);/*URL变更*/
     const char *default_whitelist;
 } URLProtocol;
 

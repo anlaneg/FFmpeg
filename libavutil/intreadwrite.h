@@ -217,7 +217,9 @@ union unaligned_64 { uint64_t l; } __attribute__((packed)) av_alias;
 union unaligned_32 { uint32_t l; } __attribute__((packed)) av_alias;
 union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 
-#   define AV_RN(s, p) (((const union unaligned_##s *) (p))->l)
+/*内容读取*/
+#   define AV_RN(s/*位宽度*/, p) (((const union unaligned_##s *) (p))->l)
+/*内容写*/
 #   define AV_WN(s, p, v) ((((union unaligned_##s *) (p))->l) = (v))
 
 #elif defined(_MSC_VER) && (defined(_M_ARM) || defined(_M_X64) || defined(_M_ARM64)) && AV_HAVE_FAST_UNALIGNED
@@ -377,12 +379,14 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #endif
 
 #if AV_HAVE_BIGENDIAN
+/*针对大端,不转换字节序,直接返回结果*/
 #   define AV_RB(s, p)    AV_RN##s(p)
 #   define AV_WB(s, p, v) AV_WN##s(p, v)
 #   define AV_RL(s, p)    av_bswap##s(AV_RN##s(p))
 #   define AV_WL(s, p, v) AV_WN##s(p, av_bswap##s(v))
 #else
-#   define AV_RB(s, p)    av_bswap##s(AV_RN##s(p))
+/*针对小端,需要转换字节序*/
+#   define AV_RB(s/*位宽位*/, p)    av_bswap##s(AV_RN##s(p))
 #   define AV_WB(s, p, v) AV_WN##s(p, av_bswap##s(v))
 #   define AV_RL(s, p)    AV_RN##s(p)
 #   define AV_WL(s, p, v) AV_WN##s(p, v)
@@ -395,9 +399,11 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #define AV_WL8(p, d)  AV_WB8(p, d)
 
 #ifndef AV_RB16
+/*16bit内容读取*/
 #   define AV_RB16(p)    AV_RB(16, p)
 #endif
 #ifndef AV_WB16
+/*16bit内容写入*/
 #   define AV_WB16(p, v) AV_WB(16, p, v)
 #endif
 

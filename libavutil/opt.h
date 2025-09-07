@@ -273,7 +273,7 @@ enum AVOptionType{
      * Underlying C type is a uint8_t* that is either NULL or points to a C
      * string allocated with the av_malloc() family of functions.
      */
-    AV_OPT_TYPE_STRING,
+    AV_OPT_TYPE_STRING,/*字符串类型*/
     /**
      * Underlying C type is AVRational.
      */
@@ -324,7 +324,7 @@ enum AVOptionType{
     /**
      * Underlying C type is int.
      */
-    AV_OPT_TYPE_BOOL,
+    AV_OPT_TYPE_BOOL,/*BOOL类型*/
     /**
      * Underlying C type is AVChannelLayout.
      */
@@ -343,7 +343,7 @@ enum AVOptionType{
      * followed by an unsigned int that will store the number of elements in the
      * array.
      */
-    AV_OPT_TYPE_FLAG_ARRAY = (1 << 16),
+    AV_OPT_TYPE_FLAG_ARRAY = (1 << 16),/*指明为数组类型*/
 };
 
 /**
@@ -365,7 +365,7 @@ enum AVOptionType{
  * The option may not be set through the AVOptions API, only read.
  * This flag only makes sense when AV_OPT_FLAG_EXPORT is also set.
  */
-#define AV_OPT_FLAG_READONLY        (1 << 7)
+#define AV_OPT_FLAG_READONLY/*只读opt*/        (1 << 7)
 /**
  * A generic parameter which can be set by the user for bit stream filtering.
  */
@@ -427,13 +427,13 @@ typedef struct AVOptionArrayDef {
  * AVOption
  */
 typedef struct AVOption {
-    const char *name;
+    const char *name;/*成员名称*/
 
     /**
      * short English help text
      * @todo What about other languages?
      */
-    const char *help;
+    const char *help;/*对外帮助信息*/
 
     /**
      * Native access only.
@@ -441,8 +441,8 @@ typedef struct AVOption {
      * The offset relative to the context structure where the option
      * value is stored. It should be 0 for named constants.
      */
-    int offset;
-    enum AVOptionType type;
+    int offset;/*成员在结构体中的偏移量*/
+    enum AVOptionType type;/*成员类型*/
 
     /**
      * Native access only, except when documented otherwise.
@@ -462,7 +462,8 @@ typedef struct AVOption {
          * documentation.
          */
         const AVOptionArrayDef *arr;
-    } default_val;
+    } default_val;/*成员默认值*/
+    /*成员容许的最大值,最小值*/
     double min;                 ///< minimum valid value for the option
     double max;                 ///< maximum valid value for the option
 

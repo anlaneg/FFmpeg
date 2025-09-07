@@ -557,6 +557,7 @@ int avformat_network_init(void)
     int ret;
     if ((ret = ff_network_init()) < 0)
         return ret;
+    /*openssl初始化*/
     if ((ret = ff_tls_init()) < 0)
         return ret;
 #endif

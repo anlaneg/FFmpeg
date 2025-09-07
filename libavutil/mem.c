@@ -192,18 +192,18 @@ int av_reallocp(void *ptr, size_t size)
 
     if (!size) {
         av_freep(ptr);
-        return 0;
+        return 0;/*长度为0时,释放并返回0*/
     }
 
-    memcpy(&val, ptr, sizeof(val));
-    val = av_realloc(val, size);
+    memcpy(&val, ptr, sizeof(val));/*设置指针(为什么不直接赋值?)*/
+    val = av_realloc(val, size);/*扩大或缩小内存*/
 
     if (!val) {
         av_freep(ptr);
         return AVERROR(ENOMEM);
     }
 
-    memcpy(ptr, &val, sizeof(val));
+    memcpy(ptr, &val, sizeof(val));/*填写PTR指向的内容(为什么经不直接赋值?)*/
     return 0;
 }
 

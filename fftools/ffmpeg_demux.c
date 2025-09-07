@@ -713,6 +713,7 @@ static int demux_thread_init(DemuxThreadContext *dt)
     return 0;
 }
 
+/*input线程*/
 static int input_thread(void *arg)
 {
     Demuxer   *d = arg;
@@ -1130,7 +1131,7 @@ static int choose_decoder(const OptionsContext *o, void *logctx,
             const AVCodec *c;
             void *i = NULL;
 
-            while ((c = av_codec_iterate(&i))) {
+            while ((c = av_codec_iterate(&i))) {/*遍历所有解码器*/
                 const AVCodecHWConfig *config;
 
                 if (c->id != st->codecpar->codec_id ||
@@ -1148,7 +1149,7 @@ static int choose_decoder(const OptionsContext *o, void *logctx,
             }
         }
 
-        *pcodec = avcodec_find_decoder(st->codecpar->codec_id);
+        *pcodec = avcodec_find_decoder(st->codecpar->codec_id);/*通过解码器ID查找*/
         return 0;
     }
 }
@@ -1398,7 +1399,7 @@ static int ist_add(const OptionsContext *o, Demuxer *d, AVStream *st, AVDictiona
     }
 
     ret = choose_decoder(o, ist, ic, st, ds->dec_opts.hwaccel_id,
-                         ds->dec_opts.hwaccel_device_type, &ist->dec);
+                         ds->dec_opts.hwaccel_device_type, &ist->dec/*出参,对应的解码器*/);
     if (ret < 0)
         return ret;
 
@@ -1631,7 +1632,8 @@ static Demuxer *demux_alloc(void)
     return d;
 }
 
-int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
+/*输入文件打开*/
+int ifile_open(const OptionsContext *o, const char *filename/*要打开的文件名称*/, Scheduler *sch)
 {
     Demuxer   *d;
     InputFile *f;
@@ -1657,9 +1659,9 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
 
     f = &d->f;
 
-    ret = sch_add_demux(sch, input_thread, d);
+    ret = sch_add_demux(sch, input_thread/*input线程处理函数*/, d);
     if (ret < 0)
-        return ret;
+        return ret;/*添加失败*/
     d->sch = sch;
 
     if (stop_time != INT64_MAX && recording_time != INT64_MAX) {
@@ -1678,14 +1680,16 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
     }
 
     if (o->format) {
+    	/*当明确指明文件format时,直接查询format*/
         if (!(file_iformat = av_find_input_format(o->format))) {
+        	/*输入格式查找失败*/
             av_log(d, AV_LOG_FATAL, "Unknown input format: '%s'\n", o->format);
             return AVERROR(EINVAL);
         }
     }
 
     if (!strcmp(filename, "-"))
-        filename = "fd:";
+        filename = "fd:";/*文件内容来源于'-',指明URL类型为fd:*/
 
     stdin_interaction &= strncmp(filename, "pipe:", 5) &&
                          strcmp(filename, "fd:") &&
@@ -1733,7 +1737,7 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
     if (o->frame_pix_fmts.nb_opt)
         av_dict_set(&o->g->format_opts, "pixel_format", o->frame_pix_fmts.opt[o->frame_pix_fmts.nb_opt - 1].u.str, 0);
 
-    video_codec_name    = opt_match_per_type_str(&o->codec_names, 'v');
+    video_codec_name    = opt_match_per_type_str(&o->codec_names, 'v');/*视频编码名称*/
     audio_codec_name    = opt_match_per_type_str(&o->codec_names, 'a');
     subtitle_codec_name = opt_match_per_type_str(&o->codec_names, 's');
     data_codec_name     = opt_match_per_type_str(&o->codec_names, 'd');
@@ -1751,11 +1755,11 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
         ret = err_merge(ret, find_codec(NULL, data_codec_name    , AVMEDIA_TYPE_DATA,     0,
                                         &ic->data_codec));
     if (ret < 0) {
-        avformat_free_context(ic);
+        avformat_free_context(ic);/*查找失败*/
         return ret;
     }
 
-    ic->video_codec_id     = video_codec_name    ? ic->video_codec->id    : AV_CODEC_ID_NONE;
+    ic->video_codec_id     = video_codec_name    ? ic->video_codec->id    : AV_CODEC_ID_NONE;/*视频编码ID*/
     ic->audio_codec_id     = audio_codec_name    ? ic->audio_codec->id    : AV_CODEC_ID_NONE;
     ic->subtitle_codec_id  = subtitle_codec_name ? ic->subtitle_codec->id : AV_CODEC_ID_NONE;
     ic->data_codec_id      = data_codec_name     ? ic->data_codec->id     : AV_CODEC_ID_NONE;
@@ -1766,11 +1770,11 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
     ic->interrupt_callback = int_cb;
 
     if (!av_dict_get(o->g->format_opts, "scan_all_pmts", NULL, AV_DICT_MATCH_CASE)) {
-        av_dict_set(&o->g->format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
+        av_dict_set(&o->g->format_opts, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);/*没有找到,填充并设置'1'*/
         scan_all_pmts_set = 1;
     }
     /* open the input file with generic avformat function */
-    err = avformat_open_input(&ic, filename, file_iformat, &o->g->format_opts);
+    err = avformat_open_input(&ic, filename, file_iformat/*文件格式*/, &o->g->format_opts);
     if (err < 0) {
         if (err != AVERROR_EXIT)
             av_log(d, AV_LOG_ERROR,
@@ -1793,12 +1797,12 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
         return ret;
 
     /* apply forced codec ids */
-    for (int i = 0; i < ic->nb_streams; i++) {
+    for (int i = 0; i < ic->nb_streams; i++) {/*查找解码器*/
         const AVCodec *dummy;
         ret = choose_decoder(o, f, ic, ic->streams[i], HWACCEL_NONE, AV_HWDEVICE_TYPE_NONE,
-                             &dummy);
+                             &dummy/*出参,保存的解码器*/);
         if (ret < 0)
-            return ret;
+            return ret;/*查找解码器失败*/
     }
 
     if (o->find_stream_info) {
@@ -1925,7 +1929,7 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
 
     /* Add all the streams from the given input file to the demuxer */
     for (int i = 0; i < ic->nb_streams; i++) {
-        ret = ist_add(o, d, ic->streams[i], &opts_used);
+        ret = ist_add(o, d, ic->streams[i], &opts_used);/*???*/
         if (ret < 0) {
             av_dict_free(&opts_used);
             return ret;
@@ -1933,7 +1937,7 @@ int ifile_open(const OptionsContext *o, const char *filename, Scheduler *sch)
     }
 
     /* dump the file content */
-    av_dump_format(ic, f->index, filename, 0);
+    av_dump_format(ic, f->index, filename, 0);/*显示文件信息*/
 
     /* check if all codec options have been used */
     ret = check_avoptions_used(o->g->codec_opts, opts_used, d, 1);

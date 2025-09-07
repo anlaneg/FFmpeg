@@ -64,8 +64,8 @@ typedef struct SchTask {
     Scheduler          *parent;
     SchedulerNode       node;
 
-    SchThreadFunc       func;
-    void               *func_arg;
+    SchThreadFunc       func;/*task函数*/
+    void               *func_arg;/*函数参数*/
 
     pthread_t           thread;
     int                 thread_running;
@@ -677,19 +677,21 @@ static const AVClass sch_demux_class = {
     .parent_log_context_offset = offsetof(SchDemux, task.func_arg),
 };
 
-int sch_add_demux(Scheduler *sch, SchThreadFunc func, void *ctx)
+/*返回demux对应的索引*/
+int sch_add_demux(Scheduler *sch, SchThreadFunc func/*线程函数*/, void *ctx/*线程函数参数*/)
 {
     const unsigned idx = sch->nb_demux;
 
     SchDemux *d;
     int ret;
 
-    ret = GROW_ARRAY(sch->demux, sch->nb_demux);
+    ret = GROW_ARRAY(sch->demux, sch->nb_demux);/*demux空间一致保证*/
     if (ret < 0)
         return ret;
 
-    d = &sch->demux[idx];
+    d = &sch->demux[idx];/*取最后一个元素*/
 
+    /*初始化task*/
     task_init(sch, &d->task, SCH_NODE_TYPE_DEMUX, idx, func, ctx);
 
     d->class    = &sch_demux_class;

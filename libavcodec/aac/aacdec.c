@@ -2538,7 +2538,7 @@ static const AVClass decoder_class = {
 };
 
 #if CONFIG_AAC_DECODER
-const FFCodec ff_aac_decoder = {
+const FFCodec ff_aac_decoder = {/*音频解码*/
     .p.name          = "aac",
     CODEC_LONG_NAME("AAC (Advanced Audio Coding)"),
     .p.type          = AVMEDIA_TYPE_AUDIO,

@@ -1106,7 +1106,7 @@ static const AVClass h264_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
-const FFCodec ff_h264_decoder = {
+const FFCodec ff_h264_decoder = {/*负责H264解码*/
     .p.name                = "h264",
     CODEC_LONG_NAME("H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10"),
     .p.type                = AVMEDIA_TYPE_VIDEO,

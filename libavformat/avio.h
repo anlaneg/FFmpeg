@@ -224,17 +224,22 @@ typedef struct AVIOContext {
      */
     unsigned char *buffer;  /**< Start of the buffer. */
     int buffer_size;        /**< Maximum buffer size */
+    /*当前BUFFER数据的起始位置*/
     unsigned char *buf_ptr; /**< Current position in the buffer */
+    /*当前BUFFER数据的结束位置*/
     unsigned char *buf_end; /**< End of the data, may be less than
                                  buffer+buffer_size if the read function returned
                                  less data than requested, e.g. for streams where
                                  no more data has been received yet. */
     void *opaque;           /**< A private pointer, passed to the read/write/seek/...
                                  functions. */
+    /*读取报文,例如ffurl_read2*/
     int (*read_packet)(void *opaque, uint8_t *buf, int buf_size);
     int (*write_packet)(void *opaque, const uint8_t *buf, int buf_size);
     int64_t (*seek)(void *opaque, int64_t offset, int whence);
+    /*记录文件位置*/
     int64_t pos;            /**< position in the file of the current buffer */
+    /*是否达到eof位置*/
     int eof_reached;        /**< true if was unable to read due to error or eof */
     int error;              /**< contains the error code or 0 if no error happened */
     int write_flag;         /**< true if open for writing */
@@ -265,7 +270,7 @@ typedef struct AVIOContext {
      * instead of going through a buffer, and avio_seek will always
      * call the underlying seek function directly.
      */
-    int direct;
+    int direct;/*是否direct IO*/
 
     /**
      * ',' separated list of allowed protocols.
@@ -493,6 +498,7 @@ int64_t avio_skip(AVIOContext *s, int64_t offset);
  */
 static av_always_inline int64_t avio_tell(AVIOContext *s)
 {
+	/*取当前读写头位置*/
     return avio_seek(s, 0, SEEK_CUR);
 }
 

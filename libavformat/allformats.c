@@ -584,8 +584,8 @@ extern const FFInputFormat  ff_vapoursynth_demuxer;
 #include "libavformat/muxer_list.c"
 #include "libavformat/demuxer_list.c"
 
-static atomic_uintptr_t indev_list_intptr  = 0;
-static atomic_uintptr_t outdev_list_intptr = 0;
+static atomic_uintptr_t indev_list_intptr  = 0;/*输入设备*/
+static atomic_uintptr_t outdev_list_intptr = 0;/*输出设备*/
 
 const AVOutputFormat *av_muxer_iterate(void **opaque)
 {
@@ -608,11 +608,11 @@ const AVOutputFormat *av_muxer_iterate(void **opaque)
     return NULL;
 }
 
-/*用于遍历demuxer*/
+/*用于遍历demuxer_list,indev_list,获得avinputformat*/
 const AVInputFormat *av_demuxer_iterate(void **opaque)
 {
     static const uintptr_t size = sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1;
-    uintptr_t i = (uintptr_t)*opaque;
+    uintptr_t i = (uintptr_t)*opaque;/*参数会指明索引号*/
     const FFInputFormat *f = NULL;
     uintptr_t tmp;
 
@@ -620,7 +620,7 @@ const AVInputFormat *av_demuxer_iterate(void **opaque)
         f = demuxer_list[i];/*取I号解码器*/
     } else if (tmp = atomic_load_explicit(&indev_list_intptr, memory_order_relaxed)) {
         const FFInputFormat *const *indev_list = (const FFInputFormat *const *)tmp;
-        f = indev_list[i - size];
+        f = indev_list[i - size];/*之后是indev_list中的内容*/
     }
 
     if (f) {
@@ -630,6 +630,7 @@ const AVInputFormat *av_demuxer_iterate(void **opaque)
     return NULL;
 }
 
+/*注册IN/OUT设备*/
 void avpriv_register_devices(const FFOutputFormat * const o[], const FFInputFormat * const i[])
 {
     atomic_store_explicit(&outdev_list_intptr, (uintptr_t)o, memory_order_relaxed);

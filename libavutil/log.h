@@ -93,7 +93,7 @@ typedef struct AVClass {
      *
      * @see av_set_default_options()
      */
-    const struct AVOption *option;
+    const struct AVOption *option;/*支持的option,可通过av_opt_next访问*/
 
     /**
      * LIBAVUTIL_VERSION with which this structure was created.
@@ -147,7 +147,7 @@ typedef struct AVClass {
     /**
      * Return next AVOptions-enabled child or NULL
      */
-    void* (*child_next)(void *obj, void *prev);
+    void* (*child_next)(void *obj, void *prev);/*非fake查询时,用于找下一个child*/
 
     /**
      * Iterate over the AVClasses corresponding to potential AVOptions-enabled
@@ -164,7 +164,7 @@ typedef struct AVClass {
      *       over the classes of all _potential_ children of any possible
      *       instance of this class.
      */
-    const struct AVClass* (*child_class_iterate)(void **iter);
+    const struct AVClass* (*child_class_iterate)(void **iter);/*可选回调,FAKE查询时通过此方式遍历AVCLASS*/
 
     /**
      * When non-zero, offset in the object to an unsigned int holding object
@@ -174,7 +174,7 @@ typedef struct AVClass {
      * Added in version 59.41.100.
      */
     int state_flags_offset;
-} AVClass;
+} AVClass;/*用于抽象具体的一个对象如何填充*/
 
 /**
  * @addtogroup lavu_log

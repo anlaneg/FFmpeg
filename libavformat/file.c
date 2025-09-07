@@ -103,6 +103,7 @@ typedef struct FileContext {
 
 static const AVOption file_options[] = {
     { "truncate", "truncate existing files on write", offsetof(FileContext, trunc), AV_OPT_TYPE_BOOL, { .i64 = 1 }, 0, 1, AV_OPT_FLAG_ENCODING_PARAM },
+	/*利用此参数配置块大小*/
     { "blocksize", "set I/O operation maximum block size", offsetof(FileContext, blocksize), AV_OPT_TYPE_INT, { .i64 = INT_MAX }, 1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM },
     { "follow", "Follow a file as it is being written", offsetof(FileContext, follow), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
     { "seekable", "Sets if the file is seekable", offsetof(FileContext, seekable), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 0, AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_ENCODING_PARAM },
@@ -118,7 +119,7 @@ static const AVOption pipe_options[] = {
 static const AVClass file_class = {
     .class_name = "file",
     .item_name  = av_default_item_name,
-    .option     = file_options,
+    .option     = file_options,/*FileContext支持的配置option*/
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
@@ -140,13 +141,13 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
 {
     FileContext *c = h->priv_data;
     int ret;
-    size = FFMIN(size, c->blocksize);
-    ret = read(c->fd, buf, size);
+    size = FFMIN(size, c->blocksize);/*不超过blocksize*/
+    ret = read(c->fd, buf, size);/*读取内容到buf中*/
     if (ret == 0 && c->follow)
-        return AVERROR(EAGAIN);
+        return AVERROR(EAGAIN);/**/
     if (ret == 0)
-        return AVERROR_EOF;
-    return (ret == -1) ? AVERROR(errno) : ret;
+        return AVERROR_EOF;/*达到文件结尾*/
+    return (ret == -1) ? AVERROR(errno) : ret;/*出错*/
 }
 
 static int file_write(URLContext *h, const unsigned char *buf, int size)
@@ -154,32 +155,32 @@ static int file_write(URLContext *h, const unsigned char *buf, int size)
     FileContext *c = h->priv_data;
     int ret;
     size = FFMIN(size, c->blocksize);
-    ret = write(c->fd, buf, size);
+    ret = write(c->fd, buf, size);/*最多写blocksize*/
     return (ret == -1) ? AVERROR(errno) : ret;
 }
 
 static int file_get_handle(URLContext *h)
 {
     FileContext *c = h->priv_data;
-    return c->fd;
+    return c->fd;/*返回FD*/
 }
 
 static int file_check(URLContext *h, int mask)
 {
     int ret = 0;
     const char *filename = h->filename;
-    av_strstart(filename, "file:", &filename);
+    av_strstart(filename, "file:", &filename);/*如有,则移除前缀*/
 
     {
 #if HAVE_ACCESS && defined(R_OK)
     if (access(filename, F_OK) < 0)
-        return AVERROR(errno);
+        return AVERROR(errno);/*文件不可访问*/
     if (mask&AVIO_FLAG_READ)
         if (access(filename, R_OK) >= 0)
-            ret |= AVIO_FLAG_READ;
+            ret |= AVIO_FLAG_READ;/*文件可读*/
     if (mask&AVIO_FLAG_WRITE)
         if (access(filename, W_OK) >= 0)
-            ret |= AVIO_FLAG_WRITE;
+            ret |= AVIO_FLAG_WRITE;/*文件可写*/
 #else
     struct stat st;
     ret = stat(filename, &st);
@@ -190,7 +191,7 @@ static int file_check(URLContext *h, int mask)
     ret |= st.st_mode&S_IWUSR ? mask&AVIO_FLAG_WRITE : 0;
 #endif
     }
-    return ret;
+    return ret;/*返回当前文件对应的flags*/
 }
 
 #if CONFIG_FD_PROTOCOL || CONFIG_PIPE_PROTOCOL
@@ -221,7 +222,7 @@ static int fd_dup(URLContext *h, int oldfd)
 static int file_close(URLContext *h)
 {
     FileContext *c = h->priv_data;
-    int ret = close(c->fd);
+    int ret = close(c->fd);/*关闭文件*/
     return (ret == -1) ? AVERROR(errno) : 0;
 }
 
@@ -234,7 +235,7 @@ static int64_t file_seek(URLContext *h, int64_t pos, int whence)
     if (whence == AVSEEK_SIZE) {
         struct stat st;
         ret = fstat(c->fd, &st);
-        return ret < 0 ? AVERROR(errno) : (S_ISFIFO(st.st_mode) ? 0 : st.st_size);
+        return ret < 0 ? AVERROR(errno) : (S_ISFIFO(st.st_mode) ? 0 : st.st_size);/*返回文件实际大小*/
     }
 
     ret = lseek(c->fd, pos, whence);/*修改文件偏移位置*/
@@ -244,6 +245,7 @@ static int64_t file_seek(URLContext *h, int64_t pos, int whence)
 
 #if CONFIG_FILE_PROTOCOL
 
+/*删除h->filename对应的目录或文件*/
 static int file_delete(URLContext *h)
 {
 #if HAVE_UNISTD_H
@@ -251,13 +253,13 @@ static int file_delete(URLContext *h)
     const char *filename = h->filename;
     av_strstart(filename, "file:", &filename);
 
-    ret = rmdir(filename);
+    ret = rmdir(filename);/*删除空目录*/
     if (ret < 0 && (errno == ENOTDIR
 #   ifdef _WIN32
         || errno == EINVAL
 #   endif
         ))
-        ret = unlink(filename);
+        ret = unlink(filename);/*删除目录失败,则移除文件*/
     if (ret < 0)
         return AVERROR(errno);
 
@@ -275,7 +277,7 @@ static int file_move(URLContext *h_src, URLContext *h_dst)
     av_strstart(filename_dst, "file:", &filename_dst);
 
     if (rename(filename_src, filename_dst) < 0)
-        return AVERROR(errno);
+        return AVERROR(errno);/*将SRC变更为DST*/
 
     return 0;
 }
@@ -307,7 +309,7 @@ static int file_open(URLContext *h, const char *filename, int flags)
 #ifdef O_BINARY
     access |= O_BINARY;
 #endif
-    fd = avpriv_open(filename, access, 0666);/*打开文件*/
+    fd = avpriv_open(filename, access, 0666);/*打开文件,返回FD*/
     if (fd == -1)
         return AVERROR(errno);
     c->fd = fd;/*填充文件对应的FD*/
@@ -411,18 +413,18 @@ static int file_close_dir(URLContext *h)
 
 const URLProtocol ff_file_protocol = {
     .name                = "file",
-    .url_open            = file_open,
+    .url_open            = file_open,/*打开/创建文件*/
     .url_read            = file_read,
     .url_write           = file_write,
     .url_seek            = file_seek,
     .url_close           = file_close,
     .url_get_file_handle = file_get_handle,
     .url_check           = file_check,
-    .url_delete          = file_delete,
+    .url_delete          = file_delete,/*文件移除*/
     .url_move            = file_move,
-    .priv_data_size      = sizeof(FileContext),
+    .priv_data_size      = sizeof(FileContext),/*自已的私有数据*/
     .priv_data_class     = &file_class,
-    .url_open_dir        = file_open_dir,
+    .url_open_dir        = file_open_dir,/*打开目录*/
     .url_read_dir        = file_read_dir,
     .url_close_dir       = file_close_dir,
     .default_whitelist   = "file,crypto,data"
@@ -485,6 +487,7 @@ static int fd_open(URLContext *h, const char *filename, int flags)
     struct stat st;
 
     if (strcmp(filename, "fd:") != 0) {
+    	/*文件名称必须为fd:开头*/
         av_log(h, AV_LOG_ERROR, "Doesn't support pass file descriptor via URL,"
                                 " please set it via -fd {num}\n");
         return AVERROR(EINVAL);
@@ -492,9 +495,9 @@ static int fd_open(URLContext *h, const char *filename, int flags)
 
     if (c->fd < 0) {
         if (flags & AVIO_FLAG_WRITE) {
-            c->fd = 1;
+            c->fd = 1;/*标记输出*/
         } else {
-            c->fd = 0;
+            c->fd = 0;/*标准输入*/
         }
     }
     if (fstat(c->fd, &st) < 0)

@@ -36,11 +36,11 @@ void ff_metadata_conv(AVDictionary **pm, const AVMetadataConv *d_conv,
     if (d_conv == s_conv || !pm)
         return;
 
-    while ((mtag = av_dict_iterate(*pm, mtag))) {
+    while ((mtag = av_dict_iterate(*pm, mtag))) {/*取得pm中的一个key*/
         key = mtag->key;
         if (s_conv)
             for (sc=s_conv; sc->native; sc++)
-                if (!av_strcasecmp(key, sc->native)) {
+                if (!av_strcasecmp(key, sc->native)) {/*取得此key对应的正式名称*/
                     key = sc->generic;
                     break;
                 }
@@ -50,7 +50,7 @@ void ff_metadata_conv(AVDictionary **pm, const AVMetadataConv *d_conv,
                     key = dc->native;
                     break;
                 }
-        av_dict_set(&dst, key, mtag->value, AV_DICT_MULTIKEY | AV_DICT_DEDUP);
+        av_dict_set(&dst, key, mtag->value, AV_DICT_MULTIKEY | AV_DICT_DEDUP);/*填写此K,V到dst*/
     }
     av_dict_free(pm);
     *pm = dst;

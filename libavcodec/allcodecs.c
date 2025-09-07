@@ -935,18 +935,18 @@ static void av_codec_init_static(void)
         /* Backward compatibility with deprecated public fields */
         const FFCodec *codec = codec_list[i];
         if (!codec->get_supported_config)
-            continue;
+            continue;/*此编码不支持配置*/
 
 FF_DISABLE_DEPRECATION_WARNINGS
         switch (codec->p.type) {
-        case AVMEDIA_TYPE_VIDEO:
+        case AVMEDIA_TYPE_VIDEO:/*视频*/
             if (!codec->p.pix_fmts)
                 codec->get_supported_config(NULL, &codec->p,
                                             AV_CODEC_CONFIG_PIX_FORMAT, 0,
                                             (const void **) &codec->p.pix_fmts,
                                             &dummy);
             break;
-        case AVMEDIA_TYPE_AUDIO:
+        case AVMEDIA_TYPE_AUDIO:/*音频*/
             codec->get_supported_config(NULL, &codec->p,
                                         AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
                                         (const void **) &codec->p.sample_fmts,
@@ -967,16 +967,17 @@ FF_ENABLE_DEPRECATION_WARNINGS
     }
 }
 
+/*枚举所有编解码*/
 const AVCodec *av_codec_iterate(void **opaque)
 {
-    uintptr_t i = (uintptr_t)*opaque;
-    const FFCodec *c = codec_list[i];
+    uintptr_t i = (uintptr_t)*opaque;/*参数被认为是索引*/
+    const FFCodec *c = codec_list[i];/*取索引指明的FFCodec*/
 
     ff_thread_once(&av_codec_static_init, av_codec_init_static);
 
     if (c) {
-        *opaque = (void*)(i + 1);
-        return &c->p;
+        *opaque = (void*)(i + 1);/*更新迭代索引*/
+        return &c->p;/*返回FFCODEC对应的avcodec*/
     }
     return NULL;
 }
@@ -999,16 +1000,17 @@ static const AVCodec *find_codec(enum AVCodecID id, int (*x)(const AVCodec *))
 
     while ((p = av_codec_iterate(&i))) {
         if (!x(p))
-            continue;
+            continue;/*被过滤*/
         if (p->id == id) {
+        	/*两者ID匹配*/
             if (p->capabilities & AV_CODEC_CAP_EXPERIMENTAL && !experimental) {
-                experimental = p;
+                experimental = p;/*试验性质的编解码备选*/
             } else
-                return p;
+                return p;/*返回*/
         }
     }
 
-    return experimental;
+    return experimental;/*返回备选*/
 }
 
 const AVCodec *avcodec_find_encoder(enum AVCodecID id)
@@ -1018,7 +1020,7 @@ const AVCodec *avcodec_find_encoder(enum AVCodecID id)
 
 const AVCodec *avcodec_find_decoder(enum AVCodecID id)
 {
-    return find_codec(id, ff_codec_is_decoder);
+    return find_codec(id, ff_codec_is_decoder);/*按照ID号查询解码器*/
 }
 
 static const AVCodec *find_codec_by_name(const char *name, int (*x)(const AVCodec *))

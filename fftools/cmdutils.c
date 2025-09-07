@@ -53,9 +53,9 @@
 #include "compat/w32dlfcn.h"
 #endif
 
-AVDictionary *sws_dict;
-AVDictionary *swr_opts;
-AVDictionary *format_opts, *codec_opts;
+AVDictionary *sws_dict;/*SWS对应的配置选项*/
+AVDictionary *swr_opts;/*SWR对应的配置选项*/
+AVDictionary *format_opts/*格式对应的配置选项*/, *codec_opts/*编解码对应的配置选项*/;
 
 int hide_banner = 0;
 
@@ -150,15 +150,16 @@ void show_help_children(const AVClass *class, int flags)
         show_help_children(child, flags);
 }
 
+/*通过字符串匹配查找选项*/
 static const OptionDef *find_option(const OptionDef *po, const char *name)
 {
     if (*name == '/')
-        name++;
+        name++;/*跳过第一个'/'符号*/
 
     while (po->name) {
         const char *end;
         if (av_strstart(name, po->name, &end) && (!*end || *end == ':'))
-            break;
+            break;/*区配跳出:1.与NAME全匹配或者2 前缀为"$NAME:"*/
         po++;
     }
     return po;
@@ -243,7 +244,7 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
     /* new-style options contain an offset into optctx, old-style address of
      * a global var*/
     void *dst = po->flags & OPT_FLAG_OFFSET ?
-                (uint8_t *)optctx + po->u.off : po->u.dst_ptr;
+                (uint8_t *)optctx + po->u.off : po->u.dst_ptr;/*取得目标指针*/
     char *arg_allocated = NULL;
 
     enum OptionType so_type = po->type;
@@ -253,16 +254,16 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
     int ret = 0;
 
     if (*opt == '/') {
-        opt++;
+        opt++;/*选项以'/'开头的,跳过'/'*/
 
         if (po->type == OPT_TYPE_BOOL) {
             av_log(NULL, AV_LOG_FATAL,
                    "Requested to load an argument from file for a bool option '%s'\n",
                    po->name);
-            return AVERROR(EINVAL);
+            return AVERROR(EINVAL);/*bool不支持这样设置*/
         }
 
-        arg_allocated = file_read(arg);
+        arg_allocated = file_read(arg);/*读取文件,取得选项参数*/
         if (!arg_allocated) {
             av_log(NULL, AV_LOG_FATAL,
                    "Error reading the value for option '%s' from file: %s\n",
@@ -270,7 +271,7 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
             return AVERROR(EINVAL);
         }
 
-        arg = arg_allocated;
+        arg = arg_allocated;/*设置参数*/
     }
 
     if (po->flags & OPT_FLAG_SPEC) {
@@ -319,7 +320,7 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
         if (ret < 0)
             goto finish;
 
-        *(int *)dst = num;
+        *(int *)dst = num;/*填写目标*/
         so_type = OPT_TYPE_INT;
     } else if (po->type == OPT_TYPE_INT64) {
         ret = parse_number(opt, arg, OPT_TYPE_INT64, INT64_MIN, (double)INT64_MAX, &num);
@@ -458,9 +459,11 @@ int parse_optgroup(void *optctx, OptionGroup *g, const OptionDef *defs)
 {
     int i, ret;
 
+    //例如:"Parsing a group of options: global ."
     av_log(NULL, AV_LOG_DEBUG, "Parsing a group of options: %s %s.\n",
-           g->group_def->name, g->arg);
+           g->group_def->name, g->arg);/*显示执行解析的组名称及选项参数*/
 
+    /*遍历选项对应的参数*/
     for (i = 0; i < g->nb_opts; i++) {
         Option *o = &g->opts[i];
 
@@ -474,10 +477,11 @@ int parse_optgroup(void *optctx, OptionGroup *g, const OptionDef *defs)
             return AVERROR(EINVAL);
         }
 
+        /*指明此选项及其参数*/
         av_log(NULL, AV_LOG_DEBUG, "Applying option %s (%s) with argument %s.\n",
                o->key, o->opt->help, o->val);
 
-        ret = write_option(optctx, o->opt, o->key, o->val, defs);
+        ret = write_option(optctx, o->opt, o->key, o->val, defs);/*设置参数*/
         if (ret < 0)
             return ret;
     }
@@ -497,16 +501,16 @@ int locate_option(int argc, char **argv, const OptionDef *options,
         const char *cur_opt = argv[i];
 
         if (!(cur_opt[0] == '-' && cur_opt[1]))
-            continue;
-        cur_opt++;
+            continue;/*选项不对'-'开头,跳过*/
+        cur_opt++;/*跳过'-'*/
 
         po = find_option(options, cur_opt);
         if (!po->name && cur_opt[0] == 'n' && cur_opt[1] == 'o')
-            po = find_option(options, cur_opt + 2);
+            po = find_option(options, cur_opt + 2);/*跳过'no'*/
 
         if ((!po->name && !strcmp(cur_opt, optname)) ||
              (po->name && !strcmp(optname, po->name)))
-            return i;
+            return i;/*命中*/
 
         if (!po->name || opt_has_arg(po))
             i++;
@@ -561,11 +565,11 @@ void parse_loglevel(int argc, char **argv, const OptionDef *options)
 
     check_options(options);
 
-    idx = locate_option(argc, argv, options, "loglevel");
+    idx = locate_option(argc, argv, options, "loglevel");/*参数索引*/
     if (!idx)
         idx = locate_option(argc, argv, options, "v");
     if (idx && argv[idx + 1])
-        opt_loglevel(NULL, "loglevel", argv[idx + 1]);
+        opt_loglevel(NULL, "loglevel", argv[idx + 1]);/*解析参数值*/
     idx = locate_option(argc, argv, options, "report");
     env = getenv_utf8("FFREPORT");
     if (env || idx) {
@@ -592,11 +596,13 @@ static const AVOption *opt_find(void *obj, const char *name, const char *unit,
 {
     const AVOption *o = av_opt_find(obj, name, unit, opt_flags, search_flags);
     if(o && !o->flags)
+    	/*即便匹配,如果o无flags仍然不能匹配*/
         return NULL;
     return o;
 }
 
 #define FLAGS ((o->type == AV_OPT_TYPE_FLAGS && (arg[0]=='-' || arg[0]=='+')) ? AV_DICT_APPEND : 0)
+/*选项的default查询及配置*/
 int opt_default(void *optctx, const char *opt, const char *arg)
 {
     const AVOption *o;
@@ -612,19 +618,24 @@ int opt_default(void *optctx, const char *opt, const char *arg)
 #endif
 
     if (!strcmp(opt, "debug") || !strcmp(opt, "fdebug"))
-        av_log_set_level(AV_LOG_DEBUG);
+        av_log_set_level(AV_LOG_DEBUG);/*遇到"-debug"或者"-fdebug"*/
 
     if (!(p = strchr(opt, ':')))
-        p = opt + strlen(opt);
+        p = opt + strlen(opt);/*不包含':',则指向结尾*/
+    /*保存被我们跳过的内容(如果有':',则跳到':'之后,如果无':',则跳到字符串结尾)*/
     av_strlcpy(opt_stripped, opt, FFMIN(sizeof(opt_stripped), p - opt + 1));
 
+    /*检查是否codec_list中某个编码对应的配置(如果选项以V,A,S开头在查询不命中时,还会跳过第一字符后再查一遍是否avcodec_options)*/
     if ((o = opt_find(&cc, opt_stripped, NULL, 0,
                          AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ)) ||
         ((opt[0] == 'v' || opt[0] == 'a' || opt[0] == 's') &&
          (o = opt_find(&cc, opt + 1, NULL, 0, AV_OPT_SEARCH_FAKE_OBJ)))) {
+    	/*确认此选项为codec类opts,设置codec_opts*/
         av_dict_set(&codec_opts, opt, arg, FLAGS);
         consumed = 1;
     }
+
+    /*检查是否AVFORMAT中某个配置,看fc.format_child_class_iterate*/
     if ((o = opt_find(&fc, opt, NULL, 0,
                          AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ))) {
         av_dict_set(&format_opts, opt, arg, FLAGS);
@@ -633,6 +644,7 @@ int opt_default(void *optctx, const char *opt, const char *arg)
         consumed = 1;
     }
 #if CONFIG_SWSCALE
+    /*如果仍无匹配,检查是否sc->swscale_options的某个配置*/
     if (!consumed && (o = opt_find(&sc, opt, NULL, 0,
                          AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ))) {
         if (!strcmp(opt, "srcw") || !strcmp(opt, "srch") ||
@@ -652,6 +664,7 @@ int opt_default(void *optctx, const char *opt, const char *arg)
     }
 #endif
 #if CONFIG_SWRESAMPLE
+    /*如果仍无匹配,检查是否SWResampler->swscale_options的某个配置*/
     if (!consumed && (o=opt_find(&swr_class, opt, NULL, 0,
                                     AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ))) {
         av_dict_set(&swr_opts, opt, arg, FLAGS);
@@ -660,8 +673,8 @@ int opt_default(void *optctx, const char *opt, const char *arg)
 #endif
 
     if (consumed)
-        return 0;
-    return AVERROR_OPTION_NOT_FOUND;
+        return 0;/*已命中,返回0*/
+    return AVERROR_OPTION_NOT_FOUND;/*此选项未命中*/
 }
 
 /*
@@ -677,7 +690,7 @@ static int match_group_separator(const OptionGroupDef *groups, int nb_groups,
     for (i = 0; i < nb_groups; i++) {
         const OptionGroupDef *p = &groups[i];
         if (p->sep && !strcmp(p->sep, opt))
-            return i;
+            return i;/*如果指明了分隔符,则检查此选项与分隔符是否一致*/
     }
 
     return -1;
@@ -689,27 +702,29 @@ static int match_group_separator(const OptionGroupDef *groups, int nb_groups,
  * @param group_idx which group definition should this group belong to
  * @param arg argument of the group delimiting option
  */
-static int finish_group(OptionParseContext *octx, int group_idx,
-                        const char *arg)
+static int finish_group(OptionParseContext *octx, int group_idx/*组IDX*/,
+                        const char *arg/*对应的参数*/)
 {
     OptionGroupList *l = &octx->groups[group_idx];
     OptionGroup *g;
     int ret;
 
-    ret = GROW_ARRAY(l->groups, l->nb_groups);
+    ret = GROW_ARRAY(l->groups, l->nb_groups);/*groups扩大1个*/
     if (ret < 0)
         return ret;
 
-    g = &l->groups[l->nb_groups - 1];
+    g = &l->groups[l->nb_groups - 1];/*取刚扩出的位置*/
 
+    /*保存前一次的group信息*/
     *g             = octx->cur_group;
-    g->arg         = arg;
+    g->arg         = arg;/*设置此组对应的参数*/
     g->group_def   = l->group_def;
     g->sws_dict    = sws_dict;
     g->swr_opts    = swr_opts;
     g->codec_opts  = codec_opts;
     g->format_opts = format_opts;
 
+    /*上次信息已保存,清空*/
     codec_opts  = NULL;
     format_opts = NULL;
     sws_dict    = NULL;
@@ -749,11 +764,12 @@ static int init_parse_context(OptionParseContext *octx,
 
     memset(octx, 0, sizeof(*octx));
 
-    octx->groups    = av_calloc(nb_groups, sizeof(*octx->groups));
+    octx->groups    = av_calloc(nb_groups, sizeof(*octx->groups));/*申请GROUPS*/
     if (!octx->groups)
         return AVERROR(ENOMEM);
     octx->nb_groups = nb_groups;
 
+    /*初始利用groups初始化group_def*/
     for (i = 0; i < octx->nb_groups; i++)
         octx->groups[i].group_def = &groups[i];
 
@@ -790,42 +806,43 @@ void uninit_parse_context(OptionParseContext *octx)
 
 int split_commandline(OptionParseContext *octx, int argc, char *argv[],
                       const OptionDef *options,
-                      const OptionGroupDef *groups, int nb_groups)
+                      const OptionGroupDef *groups, int nb_groups/*groups数组大小*/)
 {
     int ret;
-    int optindex = 1;
-    int dashdash = -2;
+    int optindex = 1;/*首个选项*/
+    int dashdash = -2;/*用于标记遇到'--'时的位置*/
 
     /* perform system-dependent conversions for arguments list */
     prepare_app_arguments(&argc, &argv);
 
-    ret = init_parse_context(octx, groups, nb_groups);
+    ret = init_parse_context(octx, groups, nb_groups/*groups数组长度*/);
     if (ret < 0)
         return ret;
 
     av_log(NULL, AV_LOG_DEBUG, "Splitting the commandline.\n");
 
     while (optindex < argc) {
-        const char *opt = argv[optindex++], *arg;
+        const char *opt = argv[optindex++]/*取选项*/, *arg;
         const OptionDef *po;
         int group_idx;
 
-        av_log(NULL, AV_LOG_DEBUG, "Reading option '%s' ...", opt);
+        av_log(NULL, AV_LOG_DEBUG, "Reading option '%s' ...", opt);/*指明取得选项OPT,例如:"Reading option '-v' ..."*/
 
         if (opt[0] == '-' && opt[1] == '-' && !opt[2]) {
-            dashdash = optindex;
+            dashdash = optindex;/*遇到'--'符号,记录位置*/
             continue;
         }
         /* unnamed group separators, e.g. output filename */
         if (opt[0] != '-' || !opt[1] || dashdash+1 == optindex) {
-            ret = finish_group(octx, 0, opt);
+        	/*不以'-'开头,或者遇到'-',或者是'--'之后首次*/
+            ret = finish_group(octx, 0, opt);/*完成0号group填充*/
             if (ret < 0)
                 return ret;
 
             av_log(NULL, AV_LOG_DEBUG, " matched as %s.\n", groups[0].name);
             continue;
         }
-        opt++;
+        opt++;/*跳过选项开头的'-'*/
 
 #define GET_ARG(arg)                                                           \
 do {                                                                           \
@@ -837,21 +854,23 @@ do {                                                                           \
 } while (0)
 
         /* named group separators, e.g. -i */
-        group_idx = match_group_separator(groups, nb_groups, opt);
+        group_idx = match_group_separator(groups, nb_groups, opt);/*检查此选项属于哪一个group*/
         if (group_idx >= 0) {
-            GET_ARG(arg);
-            ret = finish_group(octx, group_idx, arg);
+            GET_ARG(arg);/*group命中,切换到某对应参数*/
+            ret = finish_group(octx, group_idx, arg);/*增加此参数*/
             if (ret < 0)
                 return ret;
 
             av_log(NULL, AV_LOG_DEBUG, " matched as %s with argument '%s'.\n",
-                   groups[group_idx].name, arg);
+                   groups[group_idx].name, arg);/*指明已认为此参数归属于groups[group_idx].name*/
             continue;
         }
 
+        /*未查找到组,检查options(实际传入的是全局选项)是否普通选项*/
         /* normal options */
         po = find_option(options, opt);
         if (po->name) {
+        	/*命中normal options*/
             if (po->flags & OPT_EXIT) {
                 /* optional argument, e.g. -h */
                 arg = argv[optindex++];
@@ -872,13 +891,16 @@ do {                                                                           \
 
         /* AVOptions */
         if (argv[optindex]) {
+        	/*检查是否AVOPTIONS*/
             ret = opt_default(NULL, opt, argv[optindex]);
             if (ret >= 0) {
+            	/*指明选项被消费*/
                 av_log(NULL, AV_LOG_DEBUG, " matched as AVOption '%s' with "
                        "argument '%s'.\n", opt, argv[optindex]);
                 optindex++;
                 continue;
             } else if (ret != AVERROR_OPTION_NOT_FOUND) {
+            	/*解释过程出错,指明此选项解析过程中出错*/
                 av_log(NULL, AV_LOG_ERROR, "Error parsing option '%s' "
                        "with argument '%s'.\n", opt, argv[optindex]);
                 return ret;
@@ -889,6 +911,7 @@ do {                                                                           \
         if (opt[0] == 'n' && opt[1] == 'o' &&
             (po = find_option(options, opt + 2)) &&
             po->name && po->type == OPT_TYPE_BOOL) {
+        	/*在忽略掉前缀"no"后,选项置false*/
             ret = add_opt(octx, po, opt, "0");
             if (ret < 0)
                 return ret;
@@ -899,14 +922,14 @@ do {                                                                           \
         }
 
         av_log(NULL, AV_LOG_ERROR, "Unrecognized option '%s'.\n", opt);
-        return AVERROR_OPTION_NOT_FOUND;
+        return AVERROR_OPTION_NOT_FOUND;/*确认此选项不认识*/
     }
 
     if (octx->cur_group.nb_opts || codec_opts || format_opts)
         av_log(NULL, AV_LOG_WARNING, "Trailing option(s) found in the "
-               "command: may be ignored.\n");
+               "command: may be ignored.\n");/*但以上三者group不为空,有选项未被保存告警*/
 
-    av_log(NULL, AV_LOG_DEBUG, "Finished splitting the commandline.\n");
+    av_log(NULL, AV_LOG_DEBUG, "Finished splitting the commandline.\n");/*指明选项处理完成*/
 
     return 0;
 }
@@ -1453,14 +1476,16 @@ fail:
 int grow_array(void **array, int elem_size, int *size, int new_size)
 {
     if (new_size >= INT_MAX / elem_size) {
+    	/*SIZE过大*/
         av_log(NULL, AV_LOG_ERROR, "Array too big.\n");
         return AVERROR(ERANGE);
     }
     if (*size < new_size) {
+    	/*扩大空间*/
         uint8_t *tmp = av_realloc_array(*array, new_size, elem_size);
         if (!tmp)
             return AVERROR(ENOMEM);
-        memset(tmp + *size*elem_size, 0, (new_size-*size) * elem_size);
+        memset(tmp + *size*elem_size, 0, (new_size-*size) * elem_size);/*多出来的空间清零*/
         *size = new_size;
         *array = tmp;
         return 0;

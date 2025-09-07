@@ -72,6 +72,7 @@ int avpriv_open(const char *filename, int flags, ...)
 
     va_start(ap, flags);
     if (flags & O_CREAT)
+    	/*有CREATE选项,取MODE*/
         mode = va_arg(ap, unsigned int);
     va_end(ap);
 
@@ -85,6 +86,7 @@ int avpriv_open(const char *filename, int flags, ...)
     fd = open(filename, flags, mode);/*打开文件*/
 #if HAVE_FCNTL
     if (fd != -1) {
+    	/*打开文件失败*/
         if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)
             av_log(NULL, AV_LOG_DEBUG, "Failed to set close on exec\n");
     }

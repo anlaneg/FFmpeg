@@ -48,11 +48,11 @@ typedef struct AVCodecParameters {
     /**
      * General type of the encoded data.
      */
-    enum AVMediaType codec_type;
+    enum AVMediaType codec_type;/*Media类型*/
     /**
      * Specific type of the encoded data (the codec used).
      */
-    enum AVCodecID   codec_id;
+    enum AVCodecID   codec_id;/*编码编号*/
     /**
      * Additional information about the codec (corresponds to the AVI FOURCC).
      */

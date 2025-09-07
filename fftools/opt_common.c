@@ -191,6 +191,7 @@ static void print_all_libs_info(int flags, int level)
     PRINT_LIB_INFO(swresample, SWRESAMPLE, flags, level);
 }
 
+/*显示程序版本信息*/
 static void print_program_info(int flags, int level)
 {
     const char *indent = flags & INDENT? "  " : "";
@@ -235,7 +236,7 @@ void show_banner(int argc, char **argv, const OptionDef *options)
 {
     int idx = locate_option(argc, argv, options, "version");
     if (hide_banner || idx)
-        return;
+        return;/*要求显示版本或者要求hide_banner,则不显示*/
 
     print_program_info (INDENT|SHOW_COPYRIGHT, AV_LOG_INFO);
     print_all_libs_info(INDENT|SHOW_CONFIG,  AV_LOG_INFO);
@@ -246,7 +247,7 @@ int show_version(void *optctx, const char *opt, const char *arg)
 {
     av_log_set_callback(log_callback_help);
     print_program_info (SHOW_COPYRIGHT, AV_LOG_INFO);
-    print_all_libs_info(SHOW_VERSION, AV_LOG_INFO);
+    print_all_libs_info(SHOW_VERSION, AV_LOG_INFO);/*显示lib版本*/
 
     return 0;
 }
@@ -1337,7 +1338,7 @@ int opt_loglevel(void *optctx, const char *opt, const char *arg)
 
 end:
     av_log_set_flags(flags);
-    av_log_set_level(level);
+    av_log_set_level(level);/*设置log level*/
     return 0;
 }
 

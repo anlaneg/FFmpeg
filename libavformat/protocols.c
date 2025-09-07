@@ -122,26 +122,28 @@ const AVClass *avio_protocol_get_class(const char *name)
     return NULL;
 }
 
+/*依据white,black两个列表,返回可用的URLProtocol*/
 const URLProtocol **ffurl_get_protocols(const char *whitelist,
                                         const char *blacklist)
 {
     const URLProtocol **ret;
     int i, ret_idx = 0;
 
-    ret = av_calloc(FF_ARRAY_ELEMS(url_protocols), sizeof(*ret));/*申请并清零*/
+    ret = av_calloc(FF_ARRAY_ELEMS(url_protocols), sizeof(*ret));/*申请PROTOCOLS并清零*/
     if (!ret)
         return NULL;
 
+    /*遍历协议*/
     for (i = 0; url_protocols[i]; i++) {
         const URLProtocol *up = url_protocols[i];
 
         if (whitelist && *whitelist && !av_match_name(up->name, whitelist))
-            continue;/*白名单不匹配，继续*/
+            continue;/*指明了白名单,且白名单不匹配，继续*/
         if (blacklist && *blacklist && av_match_name(up->name, blacklist))
             continue;/*黑名单匹配，继续*/
 
         ret[ret_idx++] = up;/*此协议可用*/
     }
 
-    return ret;
+    return ret;/*返回protocols数组其最后一个元素后面紧跟NULL*/
 }

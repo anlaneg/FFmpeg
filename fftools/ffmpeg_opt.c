@@ -134,6 +134,7 @@ static void uninit_options(OptionsContext *o)
     av_dict_free(&o->streamid);
 }
 
+/*初始化option*/
 static void init_options(OptionsContext *o)
 {
     memset(o, 0, sizeof(*o));
@@ -1330,12 +1331,13 @@ void show_usage(void)
 }
 
 enum OptGroup {
-    GROUP_OUTFILE,
-    GROUP_INFILE,
+    GROUP_OUTFILE,/*输出文件*/
+    GROUP_INFILE,/*输入文件*/
     GROUP_DECODER,
 };
 
 static const OptionGroupDef groups[] = {
+		/*输出文件*/
     [GROUP_OUTFILE] = { "output url",  NULL, OPT_OUTPUT },
     [GROUP_INFILE]  = { "input url",   "i",  OPT_INPUT },
     [GROUP_DECODER] = { "loopback decoder", "dec", OPT_DECODER },
@@ -1363,7 +1365,7 @@ static int open_files(OptionGroupList *l, const char *inout, Scheduler *sch,
         }
 
         av_log(NULL, AV_LOG_DEBUG, "Opening an %s file: %s.\n", inout, g->arg);
-        ret = open_file(&o, g->arg, sch);
+        ret = open_file(&o, g->arg, sch);/*取g->arg打开此文件*/
         uninit_options(&o);
         if (ret < 0) {
             av_log(NULL, AV_LOG_ERROR, "Error opening %s file %s.\n",
@@ -1386,24 +1388,25 @@ int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch)
     memset(&octx, 0, sizeof(octx));
 
     /* split the commandline into an internal representation */
-    ret = split_commandline(&octx, argc, argv, options, groups,
-                            FF_ARRAY_ELEMS(groups));
+    ret = split_commandline(&octx, argc, argv, options/*全局选项*/, groups,
+                            FF_ARRAY_ELEMS(groups));/*对命令行进行分组(例如"全局类选项","AVFORMAT类选项" 只分组不处理)*/
     if (ret < 0) {
         errmsg = "splitting the argument list";
         goto fail;
     }
 
     /* apply global options */
-    ret = parse_optgroup(&go, &octx.global_opts, options);
+    ret = parse_optgroup(&go, &octx.global_opts, options);/*处理并设置全局类选项*/
     if (ret < 0) {
         errmsg = "parsing global options";
         goto fail;
     }
 
     /* configure terminal and setup signal handlers */
-    term_init();
+    term_init();/*信号处理*/
 
     /* create complex filtergraphs */
+    /*lavfi选项设置,不设置不处理*/
     for (int i = 0; i < go.nb_filtergraphs; i++) {
         ret = fg_create(NULL, go.filtergraphs[i], sch);
         go.filtergraphs[i] = NULL;
@@ -1412,21 +1415,22 @@ int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch)
     }
 
     /* open input files */
-    ret = open_files(&octx.groups[GROUP_INFILE], "input", sch, ifile_open);
+    ret = open_files(&octx.groups[GROUP_INFILE]/*处理INPUT组*/, "input", sch, ifile_open/*负责输入文件打开*/);
     if (ret < 0) {
+    	/*打开输入文件失败*/
         errmsg = "opening input files";
         goto fail;
     }
 
     /* open output files */
-    ret = open_files(&octx.groups[GROUP_OUTFILE], "output", sch, of_open);
+    ret = open_files(&octx.groups[GROUP_OUTFILE]/*处理OUTPUT组*/, "output", sch, of_open/*负责输出文件打开*/);
     if (ret < 0) {
         errmsg = "opening output files";
         goto fail;
     }
 
     /* create loopback decoders */
-    ret = open_files(&octx.groups[GROUP_DECODER], "decoder", sch, dec_create);
+    ret = open_files(&octx.groups[GROUP_DECODER]/*处理DECODER组*/, "decoder", sch, dec_create);
     if (ret < 0) {
         errmsg = "creating loopback decoders";
         goto fail;
@@ -1520,9 +1524,11 @@ static const char *const alt_qscale[]         = { "q", NULL};
 static const char *const alt_tag[]            = { "atag", "vtag", "stag", NULL };
 
 #define OFFSET(x) offsetof(OptionsContext, x)
+/*全局选项*/
 const OptionDef options[] = {
     /* main options */
     CMDUTILS_COMMON_OPTIONS
+	/*通过F指明文件格式*/
     { "f",                      OPT_TYPE_STRING, OPT_OFFSET | OPT_INPUT | OPT_OUTPUT,
         { .off       = OFFSET(format) },
         "force container format (auto-detected otherwise)", "fmt" },
@@ -1568,6 +1574,7 @@ const OptionDef options[] = {
         { .off = OFFSET(recording_time) },
         "stop transcoding after specified duration",
         "duration" },
+		/*设置stop_time*/
     { "to",                     OPT_TYPE_TIME, OPT_OFFSET | OPT_INPUT | OPT_OUTPUT,
         { .off = OFFSET(stop_time) },
         "stop transcoding after specified time is reached",

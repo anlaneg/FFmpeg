@@ -60,6 +60,7 @@ void ff_tls_deinit(void)
 #endif
 }
 
+/*仅win需要,初始化网络*/
 int ff_network_init(void)
 {
 #if HAVE_WINSOCK2_H

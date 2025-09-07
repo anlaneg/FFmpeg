@@ -346,7 +346,7 @@ typedef struct FFStream {
 
 static av_always_inline FFStream *ffstream(AVStream *st)
 {
-    return (FFStream*)st;
+    return (FFStream*)st;/*转为ffstream*/
 }
 
 static av_always_inline const FFStream *cffstream(const AVStream *st)

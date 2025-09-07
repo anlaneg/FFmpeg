@@ -48,7 +48,7 @@ typedef struct FFIOContext {
     /**
      * Bytes read statistic
      */
-    int64_t bytes_read;
+    int64_t bytes_read;/*统计我们读取多少字节*/
 
     /**
      * Bytes written statistic

@@ -63,11 +63,11 @@ static void get_packet_defaults(AVPacket *pkt)
 
 AVPacket *av_packet_alloc(void)
 {
-    AVPacket *pkt = av_malloc(sizeof(AVPacket));
+    AVPacket *pkt = av_malloc(sizeof(AVPacket));/*申请结构*/
     if (!pkt)
         return pkt;
 
-    get_packet_defaults(pkt);
+    get_packet_defaults(pkt);/*初始化pkt*/
 
     return pkt;
 }

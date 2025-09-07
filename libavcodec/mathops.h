@@ -95,18 +95,21 @@ static av_always_inline unsigned UMULH(unsigned a, unsigned b){
 /* median of 3 */
 #ifndef mid_pred
 #define mid_pred mid_pred
+/*取三者中排中间的*/
 static inline av_const int mid_pred(int a, int b, int c)
 {
     if(a>b){
         if(c>b){
-            if(c>a) b=a;
-            else    b=c;
+            if(c>a) b=a;/*从大到小排序:c,a,b;中间值为a*/
+            else    b=c;/*从大到小排序:a,c,b;中间值为c*/
         }
+        /*从大到小排序:a,b,c;中间值为b*/
     }else{
         if(b>c){
-            if(c>a) b=c;
-            else    b=a;
+            if(c>a) b=c;/*从大到小排序:b,c,a;中间值为c*/
+            else    b=a;/*从大到小排序:b,a,c;中间值为a*/
         }
+        /*从大到小排序:c,b,a;中间值为b*/
     }
     return b;
 }

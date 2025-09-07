@@ -53,7 +53,7 @@ typedef struct FFInputFormat {
     /**
      * Size of private data so that it can be allocated in the wrapper.
      */
-    int priv_data_size;
+    int priv_data_size;/*私有数据大小*/
 
     /**
      * Internal flags. See FF_INFMT_FLAG_* above and FF_FMT_FLAG_* in internal.h.

@@ -115,8 +115,8 @@ URLContext *ffio_geturlcontext(AVIOContext *s)
         return NULL;
 }
 
-static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol *up/*此url将使用的协议*/,
-                                  const char *filename, int flags,
+static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol *up/*此filename将使用的协议*/,
+                                  const char *filename/*文件名称*/, int flags,
                                   const AVIOInterruptCB *int_cb/*中断回调*/)
 {
     URLContext *uc;
@@ -152,7 +152,7 @@ static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol 
     uc->is_streamed     = 0; /* default = not streamed */
     uc->max_packet_size = 0; /* default: stream file */
     if (up->priv_data_size) {
-        uc->priv_data = av_mallocz(up->priv_data_size);
+        uc->priv_data = av_mallocz(up->priv_data_size);/*初始化对应协议的私有数据*/
         if (!uc->priv_data) {
             err = AVERROR(ENOMEM);
             goto fail;
@@ -162,9 +162,10 @@ static int url_alloc_for_protocol(URLContext **puc/*出参*/, const URLProtocol 
             *(const AVClass **)uc->priv_data = up->priv_data_class;
             av_opt_set_defaults(uc->priv_data);
             if (av_strstart(uc->filename, up->name, (const char**)&start) && *start == ',') {
+            	/*文件名称以UP->name指明字符串开始,且其后为','*/
                 int ret= 0;
                 char *p= start;
-                char sep= *++p;
+                char sep= *++p;/*跳过','*/
                 char *key, *val;
                 p++;
 
@@ -249,7 +250,7 @@ int ffurl_connect(URLContext *uc, AVDictionary **options)
     if ((err = av_dict_set(options, "protocol_blacklist", uc->protocol_blacklist, 0)) < 0)
         return err;
 
-    /*协议有url_open2接口的优先使用open2接口*/
+    /*协议有url_open2接口的优先使用open2接口,打开文件*/
     err =
         uc->prot->url_open2 ? uc->prot->url_open2(uc,
                                                   uc->filename,
@@ -263,11 +264,11 @@ int ffurl_connect(URLContext *uc, AVDictionary **options)
 
     if (err)
         return err;
-    uc->is_connected = 1;
+    uc->is_connected = 1;/*打开成功,指明已连接*/
     /* We must be careful here as ffurl_seek() could be slow,
      * for example for http */
     if ((uc->flags & AVIO_FLAG_WRITE) || !strcmp(uc->prot->name, "file"))
-    	/*对于非STREAM设置至起始位置*/
+    	/*对于非STREAM,将读写头位置设置至起始位置*/
         if (!uc->is_streamed && ffurl_seek(uc, 0, SEEK_SET) < 0)
             uc->is_streamed = 1;
     return 0;
@@ -315,6 +316,7 @@ int avio_handshake(AVIOContext *c)
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"                \
     "0123456789+-."
 
+/*利用文件名称查找其匹配的URLProtocol,具体见url_protocols数组*/
 static const struct URLProtocol *url_find_protocol(const char *filename)
 {
     const URLProtocol **protocols;
@@ -327,6 +329,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
         is_dos_path(filename))
         strcpy(proto_str, "file");/*设置协议名称为file*/
     else
+    	/*以':'结尾的,取协议名称*/
         av_strlcpy(proto_str, filename,
                    FFMIN(proto_len + 1, sizeof(proto_str)));/*取协议名称*/
 
@@ -338,7 +341,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
     protocols = ffurl_get_protocols(NULL, NULL);
     if (!protocols)
         return NULL;
-    /*遍历所有协议*/
+    /*遍历所有可用协议*/
     for (i = 0; protocols[i]; i++) {
             const URLProtocol *up = protocols[i];
         if (!strcmp(proto_str, up->name)) {
@@ -348,11 +351,11 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
         if (up->flags & URL_PROTOCOL_FLAG_NESTED_SCHEME &&
             !strcmp(proto_nested, up->name)) {
             av_freep(&protocols);
-            return up;
+            return up;/*嵌套的协议匹配,返回此协议*/
         }
     }
     av_freep(&protocols);
-    /*没有找到协议，但针对https,tls等显示告警*/
+    /*没有找到协议，但针对常见的https,tls等显示告警*/
     if (av_strstart(filename, "https:", NULL) || av_strstart(filename, "tls:", NULL) ||
         av_strstart(filename, "dtls:", NULL))
         av_log(NULL, AV_LOG_WARNING, "https or dtls protocol not found, recompile FFmpeg with "
@@ -368,22 +371,26 @@ int ffurl_alloc(URLContext **puc, const char *filename, int flags,
 
     p = url_find_protocol(filename);/*利用文件名称查询采用哪种url协议*/
     if (p)
-       return url_alloc_for_protocol(puc, p, filename, flags, int_cb);
+       return url_alloc_for_protocol(puc, p, filename, flags, int_cb);/*创建puc*/
 
+    /*未找到对应的协议,报错*/
     *puc = NULL;
     return AVERROR_PROTOCOL_NOT_FOUND;
 }
 
 int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
-                         const AVIOInterruptCB *int_cb, AVDictionary **options,
+                         const AVIOInterruptCB *int_cb, AVDictionary **options/*配置字典*/,
                          const char *whitelist, const char* blacklist,
                          URLContext *parent)
 {
     AVDictionary *tmp_opts = NULL;
     AVDictionaryEntry *e;
+    /*创建URLContext,并初始化*/
     int ret = ffurl_alloc(puc/*出参，创建context*/, filename, flags, int_cb);
     if (ret < 0)
         return ret;
+
+    /*如果指明了parent,则利用PARENT中的options填充puc*/
     if (parent) {
         ret = av_opt_copy(*puc, parent);
         if (ret < 0)
@@ -391,7 +398,10 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
     }
     if (options &&
         (ret = av_opt_set_dict(*puc, options)) < 0)
+    	/*利用传入的options填充*puc失败*/
         goto fail;
+
+    /*如果仍有options未消费完,则可能是priv_data的参数,在这里设置*/
     if (options && (*puc)->prot->priv_data_class &&
         (ret = av_opt_set_dict((*puc)->priv_data, options)) < 0)
         goto fail;
@@ -406,17 +416,19 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
                !(e=av_dict_get(*options, "protocol_blacklist", NULL, 0)) ||
                !strcmp(blacklist, e->value));
 
-    /*设置协议白名单*/
+    /*设置协议白名单到options*/
     if ((ret = av_dict_set(options, "protocol_whitelist", whitelist, 0)) < 0)
         goto fail;
 
+    /*设置协议黑名单到options*/
     if ((ret = av_dict_set(options, "protocol_blacklist", blacklist, 0)) < 0)
         goto fail;
 
+    /*利用options中的kv填充到*puc对应的内容*/
     if ((ret = av_opt_set_dict(*puc, options)) < 0)
         goto fail;
 
-    ret = ffurl_connect(*puc, options);/*完成连接(对于普通文件会执行打开关将读写头置于起始位置)*/
+    ret = ffurl_connect(*puc, options);/*完成FILENAME连接(对于普通文件会执行打开关将读写头置于起始位置)*/
 
     if (!ret)
         return 0;
@@ -435,26 +447,28 @@ int ffio_fdopen(AVIOContext **sp, URLContext *h)
     if (max_packet_size) {
         buffer_size = max_packet_size; /* no need to bufferize more than one packet */
     } else {
-        buffer_size = IO_BUFFER_SIZE;/*未指明使用IO大小*/
+        buffer_size = IO_BUFFER_SIZE;/*未指明使用IO默认大小*/
     }
+
+    /*没有写操作且为STREAM的,BUFFER扩大*/
     if (!(h->flags & AVIO_FLAG_WRITE) && h->is_streamed) {
         if (buffer_size > INT_MAX/2)
             return AVERROR(EINVAL);
         buffer_size *= 2;/*没有写操作且为STREAM的,BUFFER扩大*/
     }
-    buffer = av_malloc(buffer_size);/*申请空间*/
+    buffer = av_malloc(buffer_size);/*申请buffer空间*/
     if (!buffer)
         return AVERROR(ENOMEM);
 
     *sp = avio_alloc_context(buffer, buffer_size, h->flags & AVIO_FLAG_WRITE, h,
-                             ffurl_read2, ffurl_write2, ffurl_seek2);
+                             ffurl_read2, ffurl_write2, ffurl_seek2);/*创建sp并设置h为私有数据*/
     if (!*sp) {
         av_freep(&buffer);
-        return AVERROR(ENOMEM);
+        return AVERROR(ENOMEM);/*初始化失败*/
     }
     s = *sp;
     if (h->protocol_whitelist) {
-        s->protocol_whitelist = av_strdup(h->protocol_whitelist);
+        s->protocol_whitelist = av_strdup(h->protocol_whitelist);/*设置白名单*/
         if (!s->protocol_whitelist) {
             avio_closep(sp);
             return AVERROR(ENOMEM);
@@ -480,12 +494,12 @@ int ffio_fdopen(AVIOContext **sp, URLContext *h)
             s->seekable |= AVIO_SEEKABLE_TIME;
     }
     ((FFIOContext*)s)->short_seek_get = ffurl_get_short_seek;
-    s->av_class = &ff_avio_class;
+    s->av_class = &ff_avio_class;/*指明其对应的av_class*/
     return 0;
 }
 
-int ffio_open_whitelist(AVIOContext **s, const char *filename, int flags,
-                        const AVIOInterruptCB *int_cb, AVDictionary **options,
+int ffio_open_whitelist(AVIOContext **s/*出参,打开文件并返回此结构*/, const char *filename/*文件名*/, int flags,
+                        const AVIOInterruptCB *int_cb, AVDictionary **options/*配置字典*/,
                         const char *whitelist, const char *blacklist)
 {
     URLContext *h;
@@ -493,10 +507,11 @@ int ffio_open_whitelist(AVIOContext **s, const char *filename, int flags,
 
     *s = NULL;
 
-    err = ffurl_open_whitelist(&h, filename, flags, int_cb, options, whitelist, blacklist, NULL);
+    /*打开文件*/
+    err = ffurl_open_whitelist(&h/*出参,创建URLContext*/, filename, flags, int_cb, options, whitelist, blacklist, NULL/*无复制用结构体*/);
     if (err < 0)
         return err;
-    err = ffio_fdopen(s, h);
+    err = ffio_fdopen(s, h);/*创建AVIOContext*/
     if (err < 0) {
         ffurl_close(h);
         return err;
@@ -507,38 +522,40 @@ int ffio_open_whitelist(AVIOContext **s, const char *filename, int flags,
 int avio_open2(AVIOContext **s, const char *filename, int flags,
                const AVIOInterruptCB *int_cb, AVDictionary **options)
 {
-    return ffio_open_whitelist(s, filename, flags, int_cb, options, NULL, NULL);
+    return ffio_open_whitelist(s, filename, flags, int_cb, options, NULL/*白名单为空*/, NULL/*黑名单为空*/);
 }
 
-int avio_open(AVIOContext **s, const char *filename, int flags)
+int avio_open(AVIOContext **s, const char *filename/*文件名称*/, int flags)
 {
     return avio_open2(s, filename, flags, NULL, NULL);
 }
 
 
-static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf,
+static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf/*存放读取的内容*/,
                                          const uint8_t *cbuf,
-                                         int size, int size_min,
-                                         int read)
+                                         int size/*最多读取/写入的长度*/, int size_min/*最少读取/写入的长度*/,
+                                         int read/*是否读操作*/)
 {
     int ret, len;
     int fast_retries = 5;
     int64_t wait_since = 0;
 
-    len = 0;
+    len = 0;/*当前已读取/写入长度*/
     while (len < size_min) {
         if (ff_check_interrupt(&h->interrupt_callback))
+        	/*如果在中断中,则退出*/
             return AVERROR_EXIT;
-        ret = read ? h->prot->url_read (h, buf + len, size - len):
-                     h->prot->url_write(h, cbuf + len, size - len);
+        ret = read ? h->prot->url_read (h, buf + len, size - len)/*处理读*/:
+                     h->prot->url_write(h, cbuf + len, size - len)/*处理写*/;
         if (ret == AVERROR(EINTR))
             continue;
         if (h->flags & AVIO_FLAG_NONBLOCK)
-            return ret;
+            return ret;/*有非阻塞标记,直接返回*/
         if (ret == AVERROR(EAGAIN)) {
+        	/*尝试重试*/
             ret = 0;
             if (fast_retries) {
-                fast_retries--;
+                fast_retries--;/*重试次数减少*/
             } else {
                 if (h->rw_timeout) {
                     if (!wait_since)
@@ -546,10 +563,10 @@ static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf,
                     else if (av_gettime_relative() > wait_since + h->rw_timeout)
                         return AVERROR(EIO);
                 }
-                av_usleep(1000);
+                av_usleep(1000);/*等一会*/
             }
         } else if (ret == AVERROR_EOF)
-            return (len > 0) ? len : AVERROR_EOF;
+            return (len > 0) ? len : AVERROR_EOF;/*达到文件结尾处理(LEN不为0,返回LEN;否则返EOF)*/
         else if (ret < 0)
             return ret;
         if (ret) {
@@ -561,15 +578,17 @@ static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf,
     return len;
 }
 
+/*向buf中读取最多size字节,最少1字节*/
 int ffurl_read2(void *urlcontext, uint8_t *buf, int size)
 {
     URLContext *h = urlcontext;
 
     if (!(h->flags & AVIO_FLAG_READ))
-        return AVERROR(EIO);
+        return AVERROR(EIO);/*无可读权限*/
     return retry_transfer_wrapper(h, buf, NULL, size, 1, 1);
 }
 
+/*向buf中读取size字节*/
 int ffurl_read_complete(URLContext *h, unsigned char *buf, int size)
 {
     if (!(h->flags & AVIO_FLAG_READ))

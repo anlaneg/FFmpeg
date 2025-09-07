@@ -190,7 +190,7 @@ typedef struct SpecifierOptList {
 
 typedef struct OptionDef {
     const char *name;
-    enum OptionType type;
+    enum OptionType type;/*选项类型*/
     int flags;
 
 /* The OPT_TYPE_FUNC option takes an argument.
@@ -216,11 +216,13 @@ typedef struct OptionDef {
 
 /* Option is specified as an offset in a passed optctx.
  * Always use as OPT_OFFSET in option definitions. */
+    /*使用OFFSET来设置*/
 #define OPT_FLAG_OFFSET (1 << 8)
 #define OPT_OFFSET      (OPT_FLAG_OFFSET | OPT_PERFILE)
 
 /* Option is to be stored in a SpecifierOptList.
    Always use as OPT_SPEC in option definitions. */
+    /*选项类(列表样式,按':'分隔)*/
 #define OPT_FLAG_SPEC   (1 << 9)
 #define OPT_SPEC        (OPT_FLAG_SPEC | OPT_OFFSET)
 
@@ -244,9 +246,9 @@ typedef struct OptionDef {
 #define OPT_DECODER     (1 << 15)
 
      union {
-        void *dst_ptr;
+        void *dst_ptr;/*选项对应变量的指针*/
         int (*func_arg)(void *, const char *, const char *);
-        size_t off;
+        size_t off;/*选项对应的OFFSET*/
     } u;
     const char *help;
     const char *argname;
@@ -320,12 +322,12 @@ typedef struct Option {
 
 typedef struct OptionGroupDef {
     /** group name */
-    const char *name;
+    const char *name;/*组名称*/
     /**
      * Option to be used as group separator. Can be NULL for groups which
      * are terminated by a non-option argument (e.g. ffmpeg output files)
      */
-    const char *sep;
+    const char *sep;/*标记*/
     /**
      * Option flags that must be set on each option that is
      * applied to this group
@@ -338,7 +340,7 @@ typedef struct OptionGroup {
     const char *arg;
 
     Option *opts;
-    int  nb_opts;
+    int  nb_opts;/*opts数组长度*/
 
     AVDictionary *codec_opts;
     AVDictionary *format_opts;
@@ -351,17 +353,17 @@ typedef struct OptionGroup {
  * (e.g. input files or output files)
  */
 typedef struct OptionGroupList {
-    const OptionGroupDef *group_def;
+    const OptionGroupDef *group_def;/*组引用*/
 
     OptionGroup *groups;
-    int       nb_groups;
+    int       nb_groups;/*groups数组大小*/
 } OptionGroupList;
 
 typedef struct OptionParseContext {
     OptionGroup global_opts;
 
     OptionGroupList *groups;
-    int           nb_groups;
+    int           nb_groups;/*group数组长度*/
 
     /* parsing state */
     OptionGroup cur_group;
@@ -529,8 +531,9 @@ int grow_array(void **array, int elem_size, int *size, int new_size);
  */
 void *allocate_array_elem(void *array, size_t elem_size, int *nb_elems);
 
+/*将数组长度扩大1个*/
 #define GROW_ARRAY(array, nb_elems)\
-    grow_array((void**)&array, sizeof(*array), &nb_elems, nb_elems + 1)
+    grow_array((void**)&array/*数组地址*/, sizeof(*array)/*数组元素大小*/, &nb_elems/*当前数组元素数*/, nb_elems + 1/*新的元素数*/)
 
 double get_rotation(const int32_t *displaymatrix);
 

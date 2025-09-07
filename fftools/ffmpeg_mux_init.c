@@ -3259,7 +3259,8 @@ static Muxer *mux_alloc(void)
     return mux;
 }
 
-int of_open(const OptionsContext *o, const char *filename, Scheduler *sch)
+/*输出文件打开*/
+int of_open(const OptionsContext *o, const char *filename/*文件名称*/, Scheduler *sch)
 {
     Muxer *mux;
     AVFormatContext *oc;

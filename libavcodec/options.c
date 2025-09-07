@@ -62,8 +62,9 @@ static const AVClass *codec_child_class_iterate(void **iter)
     /* find next codec with priv options */
     while (c = av_codec_iterate(iter))
         if (c->priv_class)
+        	/*返回此类型对应的AVClass变量*/
             return c->priv_class;
-    return NULL;
+    return NULL;/*迭代完了*/
 }
 
 static AVClassCategory get_category(void *ptr)
@@ -82,7 +83,7 @@ static const AVClass av_codec_context_class = {
     .version                 = LIBAVUTIL_VERSION_INT,
     .log_level_offset_offset = offsetof(AVCodecContext, log_level_offset),
     .child_next              = codec_child_next,
-    .child_class_iterate     = codec_child_class_iterate,
+    .child_class_iterate     = codec_child_class_iterate,/*迭代所有codec*/
     .category                = AV_CLASS_CATEGORY_ENCODER,
     .get_category            = get_category,
 };
@@ -183,7 +184,7 @@ void avcodec_free_context(AVCodecContext **pavctx)
 
 const AVClass *avcodec_get_class(void)
 {
-    return &av_codec_context_class;
+    return &av_codec_context_class;/*返回此AVCLASS*/
 }
 
 #define SROFFSET(x) offsetof(AVSubtitleRect,x)
